@@ -40,6 +40,12 @@ To update, run the same Terminal line again. Your recordings, settings and model
 2. Tick your **headphones or speakers** first, then **BlackHole 2ch**. Turn on **Drift Correction** for BlackHole and rename the device **Isma3 Calls**.
 3. Before a call, set **System Settings → Sound → Output** to **Isma3 Calls**. In Isma3, open **Sources** and set **Call audio** to **BlackHole 2ch**.
 
+Per app:
+- **Zoom**: Settings → Audio → Speaker: *Same as System*.
+- **Microsoft Teams**: Settings → Devices → Speaker: *Isma3 Calls*.
+- **WhatsApp**: use the Mac app or WhatsApp Web. Calls on your iPhone can't be captured.
+- **FaceTime and iPhone calls answered on the Mac**: captured too.
+
 Wear headphones if you can, so voices aren't recorded twice. Volume keys don't work on a Multi-Output device, so set the volume in the call app.
 
 ## Using it

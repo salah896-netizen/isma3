@@ -125,6 +125,7 @@ details.menu{position:relative;display:inline-block}details.menu summary{list-st
 .bin svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .item:hover .bin,.item:focus-within .bin{opacity:1}.bin:hover{background:rgba(255,59,48,.12);color:var(--err)}
 .item.active .bin{color:rgba(255,255,255,.85)}.item.active .bin:hover{background:rgba(255,255,255,.2);color:#fff}
+.banner.offline{background:rgba(255,59,48,.12)}
 .spkfix{display:flex;gap:8px;align-items:center;margin:-6px 0 16px}
 .spkfix select{padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel)}
 .spkchip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 10px;background:var(--panel);font-size:13px}
@@ -242,6 +243,7 @@ aside{margin:8px;height:calc(100vh - 16px);border-radius:18px;background:rgba(24
 <aside>
   <div class="brand"><span class="dot" id="healthDot" title="System status"></span><h1>Isma3</h1><span class="offline">On this Mac</span></div>
 
+  <div id="offlineNote" class="banner offline" style="display:none;margin:4px 16px 0"><b>Isma3 isn't running.</b> Click the Isma3 icon in your Dock to start it. This window will reconnect by itself.</div>
   <div id="updateNote" class="banner" style="display:none;margin:4px 16px 0">Isma3 has been updated. <button class="linkbtn" id="restartBtn">Restart now</button> to finish.<span id="restartHelp" class="hint" style="display:none"><br>If that doesn't work, close any Terminal window running Isma3, then open Isma3 again.</span></div>
   <div class="recorder">
     <button class="recbtn" id="recBtn" aria-label="Start recording"><span class="inner"></span></button>
@@ -289,7 +291,9 @@ const store = { get(k){ try { return localStorage.getItem(k); } catch { return n
                 set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
 
 async function api(path, opts = {}) {
-  const r = await fetch(path, opts);
+  let r;
+  try { r = await fetch(path, opts); }
+  catch { throw new Error("Isma3 isn't running. Click the Isma3 icon in your Dock to start it, then try again."); }
   if (!r.ok) { let d = ""; try { d = (await r.json()).detail; } catch {}
     if (r.status === 404 && d === "Not Found") d = "Isma3 needs a restart to finish updating. Close this window and open Isma3 again.";
     throw new Error(d || r.statusText); }
@@ -361,6 +365,7 @@ async function deleteRecs(ids) {
 let healthData = null;
 async function loadHealth() {
   try { healthData = await api("/api/health"); } catch { healthData = null; }
+  $("#offlineNote").style.display = healthData ? "none" : "block";
   const stale = healthData && healthData.version !== APP_VERSION;
   $("#updateNote").style.display = stale ? "block" : "none";
   const ok = healthData && Object.values(healthData.checks).every(c => c.ok);
@@ -797,7 +802,8 @@ $("#restartBtn").onclick = async () => {
     try { const h = await (await fetch("/api/health")).json(); if (h.version === APP_VERSION) { location.reload(); return; } } catch {} }
   $("#restartHelp").style.display = "inline"; $("#restartBtn").textContent = "Restart now";
 };
-showHome(); refresh(); loadHealth(); loadVoices().then(() => { if (view === "home") renderHome(); }); setInterval(loadHealth, 15000);
+showHome(); refresh(); loadHealth(); loadVoices().then(() => { if (view === "home") renderHome(); });
+setInterval(async () => { const was = !!healthData; await loadHealth(); if (!was && healthData) { await loadVoices(); refresh(); } }, 5000);
 </script>
 </body>
 </html>

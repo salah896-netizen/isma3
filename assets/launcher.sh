@@ -6,6 +6,11 @@ export HF_HUB_OFFLINE=1
 cd "$DIR" || { osascript -e 'display alert "Isma3 folder not found" message "Expected it at '"$DIR"'."'; exit 1; }
 PORT=$(.venv/bin/python -c "import json,os;c={};[c.update(json.load(open(f))) for f in ('config.example.json','config.json') if os.path.exists(f)];print(c.get('port',8765))" 2>/dev/null || echo 8765)
 URL="http://localhost:$PORT"
+# if the icon is clicked twice quickly, let the first click do the starting
+if ! mkdir /tmp/isma3-launch.lock 2>/dev/null; then
+  sleep 3; open "$URL"; exit 0
+fi
+trap 'rmdir /tmp/isma3-launch.lock 2>/dev/null' EXIT
 # restart a running copy if the app was updated since it started
 if [ -f data/server.pid ] && curl -s "$URL/api/health" >/dev/null; then
   if [ app.py -nt data/server.pid ] || [ pipeline.py -nt data/server.pid ]; then

@@ -208,6 +208,7 @@ aside{margin:8px;height:calc(100vh - 16px);border-radius:18px;background:rgba(24
 <aside>
   <div class="brand"><span class="dot" id="healthDot" title="System status"></span><h1>Isma3</h1><span class="offline">On this Mac</span></div>
 
+  <div id="updateNote" class="banner" style="display:none;margin:4px 16px 0">Isma3 has been updated. Close this window and open Isma3 again to finish.</div>
   <div class="recorder">
     <button class="recbtn" id="recBtn" aria-label="Start recording"><span class="inner"></span></button>
     <div class="timer" id="timer">00:00</div>
@@ -242,6 +243,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = s => { s = Math.floor(s || 0); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
   return (h ? h + ":" + String(m).padStart(2,"0") : String(m).padStart(2,"0")) + ":" + String(x).padStart(2,"0"); };
+const APP_VERSION = "1.2";
 const STAGES = ["queued","converting","transcribing","speakers","notes","indexing","exporting","done"];
 const LABEL = {queued:"Waiting",converting:"Preparing audio",transcribing:"Transcribing",speakers:"Identifying speakers",
   notes:"Writing summary",indexing:"Indexing for Ask",exporting:"Saving to Obsidian",done:"Done",error:"Failed"};
@@ -250,7 +252,9 @@ const store = { get(k){ try { return localStorage.getItem(k); } catch { return n
 
 async function api(path, opts = {}) {
   const r = await fetch(path, opts);
-  if (!r.ok) { let d = ""; try { d = (await r.json()).detail; } catch {} throw new Error(d || r.statusText); }
+  if (!r.ok) { let d = ""; try { d = (await r.json()).detail; } catch {}
+    if (r.status === 404 && d === "Not Found") d = "Isma3 needs a restart to finish updating. Close this window and open Isma3 again.";
+    throw new Error(d || r.statusText); }
   return r.json();
 }
 
@@ -289,6 +293,8 @@ function renderList() {
 let healthData = null;
 async function loadHealth() {
   try { healthData = await api("/api/health"); } catch { healthData = null; }
+  const stale = healthData && healthData.version !== APP_VERSION;
+  $("#updateNote").style.display = stale ? "block" : "none";
   const ok = healthData && Object.values(healthData.checks).every(c => c.ok);
   $("#healthDot").className = "dot " + (ok ? "ok" : "bad");
   $("#healthDot").title = ok ? "Everything is set up" : "Setup needs attention";

@@ -42,6 +42,8 @@ DEFAULT_CONFIG = {
     "port": 8765,
 }
 
+VERSION = "1.2"  # bump with every update; the page compares it to spot a stale engine
+
 STAGES = {
     "queued": "Waiting",
     "converting": "Preparing audio",
@@ -701,4 +703,4 @@ def health() -> dict:
     if vault_set:
         checks["obsidian vault"] = {"ok": vault.is_dir(), "fix": f"Check obsidian_vault in config.json (now: {vault})"}
     return {"checks": checks, "vault": str(vault) if vault else "", "folder": cfg.get("obsidian_folder", "Isma3"),
-            "name": (cfg.get("name") or "").strip()}
+            "name": (cfg.get("name") or "").strip(), "version": VERSION}

@@ -114,6 +114,17 @@ details.menu{position:relative;display:inline-block}details.menu summary{list-st
 .nowtopic{margin:0 0 10px;font-weight:600}.lh{display:block;margin:10px 0 2px;font-size:13px}
 .settings label.check{display:flex;flex-direction:row;gap:8px;align-items:center;color:var(--ink)}
 @media (max-width:900px){.livegrid{grid-template-columns:1fr}}
+.listhead{display:flex;justify-content:space-between;align-items:center;padding-right:20px}.listhead .linkbtn{text-transform:none;letter-spacing:0;font-size:12.5px}
+.selbar{display:none;align-items:center;justify-content:space-between;margin:2px 16px 6px;padding:6px 6px 6px 12px;border-radius:10px;background:var(--chip);font-size:13px}.selbar.on{display:flex}
+.selbar .btn:disabled{opacity:.45;cursor:default}
+.item{display:flex;align-items:center;gap:8px;cursor:pointer;position:relative}.item .body{flex:1;min-width:0}
+.item .tick{flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--faint);display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.item.picked .tick{background:var(--accent);border-color:var(--accent)}.item.picked{background:var(--chip)}
+.item.busy .tick{opacity:.3}
+.bin{flex:none;opacity:0;border:none;background:none;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--muted);transition:opacity .12s}
+.bin svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.item:hover .bin,.item:focus-within .bin{opacity:1}.bin:hover{background:rgba(255,59,48,.12);color:var(--err)}
+.item.active .bin{color:rgba(255,255,255,.85)}.item.active .bin:hover{background:rgba(255,255,255,.2);color:#fff}
 .spkfix{display:flex;gap:8px;align-items:center;margin:-6px 0 16px}
 .spkfix select{padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel)}
 .spkchip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 10px;background:var(--panel);font-size:13px}
@@ -258,7 +269,8 @@ aside{margin:8px;height:calc(100vh - 16px);border-radius:18px;background:rgba(24
   </div>
 
   <button class="askall" id="askAllBtn">Ask Isma3 <span class="hint" style="margin-left:auto">all recordings</span></button>
-  <div class="listhead">Recordings</div>
+  <div class="listhead"><span>Recordings</span><button class="linkbtn" id="selBtn">Select</button></div>
+  <div class="selbar" id="selBar"><span id="selCount">None selected</span><button class="btn danger" id="delSel" disabled>Delete</button></div>
   <div class="list" id="list"></div>
 </aside>
 
@@ -308,11 +320,41 @@ function renderList() {
     const busy = !["done","error"].includes(r.stage);
     const pill = r.stage === "error" ? `<span class="pill err">Failed</span>` :
       busy ? `<span class="pill busy">${LABEL[r.stage]}…</span>` : "";
-    return `<button class="item ${r.id === current && view === "rec" ? "active" : ""}" data-id="${r.id}">
-      <div class="t">${esc(r.title)}</div>
-      <div class="m">${d.toLocaleDateString("en-GB",{day:"numeric",month:"short"})} · ${d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}${r.duration ? " · " + fmt(r.duration) : ""} ${pill}</div></button>`;
+    const sel = selecting && selected.has(r.id);
+    return `<div class="item ${r.id === current && view === "rec" && !selecting ? "active" : ""} ${sel ? "picked" : ""} ${busy ? "busy" : ""}" data-id="${r.id}" role="button" tabindex="0">
+      ${selecting ? `<span class="tick" aria-hidden="true">${sel ? "✓" : ""}</span>` : ""}
+      <div class="body"><div class="t">${esc(r.title)}</div>
+      <div class="m">${d.toLocaleDateString("en-GB",{day:"numeric",month:"short"})} · ${d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}${r.duration ? " · " + fmt(r.duration) : ""} ${pill}</div></div>
+      ${!selecting && !busy ? `<button class="bin" data-del="${r.id}" aria-label="Delete ${esc(r.title)}" title="Delete"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>` : ""}</div>`;
   }).join("");
-  el.querySelectorAll(".item").forEach(b => b.onclick = () => { tab = "summary"; openRec(b.dataset.id); });
+  el.querySelectorAll(".item").forEach(b => {
+    const open = () => {
+      if (selecting) { if (b.classList.contains("busy")) return; selected.has(b.dataset.id) ? selected.delete(b.dataset.id) : selected.add(b.dataset.id); updateSel(); renderList(); return; }
+      tab = "summary"; openRec(b.dataset.id); };
+    b.onclick = open; b.onkeydown = e => { if (e.key === "Enter") open(); };
+  });
+  el.querySelectorAll("[data-del]").forEach(btn => btn.onclick = e => { e.stopPropagation(); deleteRecs([btn.dataset.del]); });
+}
+
+let selecting = false; const selected = new Set();
+function updateSel() {
+  $("#selCount").textContent = selected.size ? `${selected.size} selected` : "None selected";
+  $("#delSel").disabled = !selected.size; $("#delSel").textContent = selected.size ? `Delete ${selected.size}` : "Delete";
+}
+$("#selBtn").onclick = () => { selecting = !selecting; selected.clear(); $("#selBtn").textContent = selecting ? "Done" : "Select";
+  $("#selBar").classList.toggle("on", selecting); updateSel(); renderList(); };
+$("#delSel").onclick = () => deleteRecs([...selected]);
+async function deleteRecs(ids) {
+  if (!ids.length) return;
+  const names = ids.map(id => recordings.find(r => r.id === id)?.title || "this recording");
+  const what = ids.length === 1 ? `"${names[0]}"` : `${ids.length} recordings`;
+  if (!confirm(`Delete ${what}? This can't be undone. Any Obsidian notes stay where they are.`)) return;
+  const failed = [];
+  for (const id of ids) { try { await api(`/api/recordings/${id}`, { method: "DELETE" }); selected.delete(id); } catch (e) { failed.push(e.message); } }
+  if (ids.includes(current)) showHome();
+  if (selecting && !selected.size) { selecting = false; $("#selBtn").textContent = "Select"; $("#selBar").classList.remove("on"); }
+  updateSel(); await refresh();
+  if (failed.length) alert(`${failed.length} couldn't be deleted: ${failed[0]}`);
 }
 
 /* ------------------------------------------------------------ home */

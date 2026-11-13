@@ -11,6 +11,7 @@ import pipeline as P
 
 app = FastAPI(title="Isma3")
 P.REC_DIR.mkdir(parents=True, exist_ok=True)
+(P.DATA_DIR / "server.pid").write_text(str(__import__("os").getpid()))  # lets the launcher restart us after updates
 P.recover_interrupted()
 worker = P.Worker()
 
@@ -87,6 +88,8 @@ def patch(rec_id: str, body: Patch):
                 speakers[k] = v.strip()[:40]
         changes["speakers"] = speakers
     meta = P.update_meta(rec_id, **changes)
+    if body.speakers:
+        P.merge_speakers(rec_id)  # two speakers given the same name become one
     if meta.get("stage") == "done":  # keep the Obsidian note in step with renames
         try:
             P.export_obsidian(P.load_config(), rec_id)
@@ -112,7 +115,23 @@ def regenerate(rec_id: str):
         raise HTTPException(409, "Still processing")
     if not (P.rec_path(rec_id) / "transcript.json").exists():
         raise HTTPException(400, "No transcript yet. Use Retry instead.")
-    worker.submit(rec_id, notes_only=True)
+    worker.submit(rec_id, "notes")
+    return P.get_meta(rec_id)
+
+
+class SpeakerCount(BaseModel):
+    num_speakers: int | None = None
+
+
+@app.post("/api/recordings/{rec_id}/speakers")
+def redo_speakers(rec_id: str, body: SpeakerCount):
+    """Re-label who said what with a given number of speakers (keeps the transcript text)."""
+    meta = _meta_or_404(rec_id)
+    if meta.get("stage") not in ("done", "error"):
+        raise HTTPException(409, "Still processing")
+    n = body.num_speakers if body.num_speakers and 0 < body.num_speakers <= 12 else None
+    P.update_meta(rec_id, num_speakers=n)
+    worker.submit(rec_id, "speakers")
     return P.get_meta(rec_id)
 
 

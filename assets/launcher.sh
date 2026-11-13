@@ -6,6 +6,14 @@ export HF_HUB_OFFLINE=1
 cd "$DIR" || { osascript -e 'display alert "Isma3 folder not found" message "Expected it at '"$DIR"'."'; exit 1; }
 PORT=$(.venv/bin/python -c "import json,os;c={};[c.update(json.load(open(f))) for f in ('config.example.json','config.json') if os.path.exists(f)];print(c.get('port',8765))" 2>/dev/null || echo 8765)
 URL="http://localhost:$PORT"
+# restart a running copy if the app was updated since it started
+if [ -f data/server.pid ] && curl -s "$URL/api/health" >/dev/null; then
+  if [ app.py -nt data/server.pid ] || [ pipeline.py -nt data/server.pid ]; then
+    kill "$(cat data/server.pid)" 2>/dev/null; sleep 1.5
+  fi
+elif curl -s "$URL/api/health" >/dev/null; then
+  pkill -f ".venv/bin/python app.py"; sleep 1.5   # an older copy without a pid file
+fi
 if ! curl -s "$URL/api/health" >/dev/null; then
   curl -s http://127.0.0.1:11434/api/tags >/dev/null || { open -ga Ollama; sleep 4; }
   mkdir -p data

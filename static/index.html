@@ -91,6 +91,8 @@ ul.clean{margin:0;padding-left:20px}ul.clean li{margin:5px 0}
 .player{position:sticky;top:0;background:var(--bg);padding:8px 0 12px;z-index:2}
 .player audio{width:100%}
 .spk{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px;align-items:center}
+.spkfix{display:flex;gap:8px;align-items:center;margin:-6px 0 16px}
+.spkfix select{padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel)}
 .spkchip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 10px;background:var(--panel);font-size:13px}
 .spkchip input{border:none;background:none;width:110px;outline:none;font-weight:600}
 .sw{width:9px;height:9px;border-radius:50%}
@@ -382,7 +384,10 @@ function renderTab() {
       <div class="player"><audio id="aud" controls preload="metadata" src="/api/recordings/${meta.id}/audio"></audio></div>
       ${keys.length > 0 ? `<div class="spk"><span class="hint">Speakers:</span>${keys.map(k =>
         `<span class="spkchip"><span class="sw" style="background:${speakerColour(k)}"></span><input data-k="${k}" value="${esc(sName(meta, k))}" aria-label="Rename ${esc(k)}"></span>`).join("")}
-        <span class="hint">Click a name to rename</span></div>` : ""}
+        <span class="hint">Click a name to rename. Give two the same name to merge them.</span></div>` : ""}
+      <div class="spkfix"><span class="hint">Wrong number of speakers?</span>
+        <select id="spkCount" aria-label="Number of speakers">${[1,2,3,4,5,6,7,8].map(n => `<option ${n === keys.length ? "selected" : ""}>${n}</option>`).join("")}<option value="">Work it out</option></select>
+        <button class="btn" id="spkRedo">Redo speakers</button></div>
       ${transcript.length ? transcript.map((u, i) => `
         <div class="utt" data-s="${u.start}" data-e="${u.end}"><button class="ts" data-seek="${u.start}">${fmt(u.start)}</button>
         <div><div class="who" style="color:${speakerColour(u.speaker)}">${esc(sName(meta, u.speaker))}</div>${esc(u.text)}</div></div>`).join("")
@@ -394,10 +399,15 @@ function renderTab() {
     if (pendingSeek != null) { const t = pendingSeek; pendingSeek = null;
       aud.addEventListener("loadedmetadata", () => { aud.currentTime = t; }, { once: true });
       const target = utts.find(u => +u.dataset.e > t); target?.scrollIntoView({ block: "center" }); }
+    $("#spkRedo").onclick = async () => {
+      const v = $("#spkCount").value;
+      try { await api(`/api/recordings/${meta.id}/speakers`, { method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ num_speakers: v ? +v : null }) }); await refresh(); openRec(meta.id); } catch (e) { alert(e.message); }
+    };
     el.querySelectorAll(".spkchip input").forEach(inp => {
       const save = async () => { const v = inp.value.trim(); if (!v || v === sName(meta, inp.dataset.k)) return;
-        try { currentData.meta = await api(`/api/recordings/${meta.id}`, { method: "PATCH", headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ speakers: { [inp.dataset.k]: v } }) }); renderRec(true); } catch (e) { alert(e.message); } };
+        try { await api(`/api/recordings/${meta.id}`, { method: "PATCH", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ speakers: { [inp.dataset.k]: v } }) }); await openRec(meta.id, true); } catch (e) { alert(e.message); } };
       inp.onblur = save; inp.onkeydown = e => { if (e.key === "Enter") inp.blur(); };
     });
   } else if (tab === "mindmap") {

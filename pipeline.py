@@ -493,28 +493,68 @@ def export_obsidian(cfg: dict, rec_id: str) -> None:
     update_meta(rec_id, export_path=str(target), export_error=None)
 
 
+# ---------------------------------------------------------------- speaker edits
+
+def merge_speakers(rec_id: str) -> bool:
+    """If two speakers share a name, fold them into one. Returns True if anything merged."""
+    d = rec_path(rec_id)
+    meta = get_meta(rec_id)
+    speakers = dict(meta.get("speakers") or {})
+    first_key_for: dict[str, str] = {}
+    remap: dict[str, str] = {}
+    for key in sorted(speakers, key=lambda k: int(k[1:]) if k[1:].isdigit() else 99):
+        name = speakers[key].strip().lower()
+        if name in first_key_for:
+            remap[key] = first_key_for[name]
+        else:
+            first_key_for[name] = key
+    if not remap:
+        return False
+    merged: list[dict] = []
+    for u in read_json(d / "transcript.json", []):
+        u = dict(u, speaker=remap.get(u["speaker"], u["speaker"]))
+        last = merged[-1] if merged else None
+        if last and last["speaker"] == u["speaker"] and u["start"] - last["end"] <= 2.0:
+            last["text"] = f"{last['text']} {u['text']}"
+            last["end"] = u["end"]
+        else:
+            merged.append(u)
+    write_json(d / "transcript.json", merged)
+    for k in remap:
+        speakers.pop(k, None)
+    update_meta(rec_id, speakers=speakers)
+    return True
+
+
 # ---------------------------------------------------------------- the worker
 
-def process(rec_id: str, notes_only: bool = False) -> None:
+def process(rec_id: str, mode: str = "full") -> None:
+    """mode: "full" (audio -> everything), "speakers" (re-label speakers, then notes), "notes" (notes only)."""
     cfg = load_config()
     d = rec_path(rec_id)
     meta = get_meta(rec_id)
     try:
-        if not notes_only:
-            update_meta(rec_id, stage="converting", error=None)
-            wav, duration = convert_audio(d, meta["original"])
-            update_meta(rec_id, duration=round(duration, 1))
-
-            update_meta(rec_id, stage="transcribing")
-            segments = transcribe(wav, cfg)
+        if mode == "speakers" and not ((d / "segments.json").exists() and (d / "audio16k.wav").exists()):
+            mode = "full"  # older recordings: no saved segments, so transcribe again
+        if mode in ("full", "speakers"):
+            if mode == "full":
+                update_meta(rec_id, stage="converting", error=None)
+                wav, duration = convert_audio(d, meta["original"])
+                update_meta(rec_id, duration=round(duration, 1))
+                update_meta(rec_id, stage="transcribing")
+                segments = transcribe(wav, cfg)
+                write_json(d / "segments.json", segments)
+            else:
+                update_meta(rec_id, error=None)
+                wav = d / "audio16k.wav"
+                segments = read_json(d / "segments.json", [])
 
             update_meta(rec_id, stage="speakers")
+            meta = get_meta(rec_id)
             turns = diarize(load_wav(wav), cfg, meta.get("num_speakers")) if segments else []
             utterances = build_utterances(segments, turns)
-            meta = get_meta(rec_id)
-            speakers = dict(meta.get("speakers") or {})
-            for u in utterances:
-                speakers.setdefault(u["speaker"], u["speaker"].replace("S", "Speaker "))
+            old = dict(meta.get("speakers") or {}) if mode == "full" else {}
+            speakers = {u["speaker"]: old.get(u["speaker"], u["speaker"].replace("S", "Speaker ")) for u in utterances}
             meta = update_meta(rec_id, speakers=speakers)
             write_json(d / "transcript.json", utterances)
         else:
@@ -555,16 +595,16 @@ class Worker:
         self.q: queue.Queue = queue.Queue()
         threading.Thread(target=self._run, daemon=True).start()
 
-    def submit(self, rec_id: str, notes_only: bool = False) -> None:
+    def submit(self, rec_id: str, mode: str = "full") -> None:
         update_meta(rec_id, stage="queued", error=None)
-        self.q.put((rec_id, notes_only))
+        self.q.put((rec_id, mode))
 
     def _run(self):
         while True:
-            rec_id, notes_only = self.q.get()
+            rec_id, mode = self.q.get()
             try:
                 if rec_path(rec_id).exists():
-                    process(rec_id, notes_only)
+                    process(rec_id, mode)
             except Exception:
                 traceback.print_exc()
             finally:

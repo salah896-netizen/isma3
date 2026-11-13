@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isma3</title>
+<style>
+/* light: macOS classic with Liquid Glass touches */
+:root{--bg:#f5f5f7;--panel:#fff;--panel2:#f2f2f7;--ink:#1d1d1f;--muted:#6e6e73;--faint:#aeaeb2;--line:rgba(0,0,0,.09);
+  --accent:#007aff;--accent-ink:#fff;--rec:#ff3b30;--ok:#34c759;--warn:#ff9f0a;--err:#ff3b30;--chip:rgba(118,118,128,.12);--sel:#007aff;--radius:12px;
+  --s1:#007aff;--s2:#ff9500;--s3:#34c759;--s4:#af52de;--s5:#ff2d55;--s6:#30b0c7}
+/* dark: Pro graphite */
+@media (prefers-color-scheme: dark){:root{--bg:#1e1e20;--panel:#2a2a2d;--panel2:#232326;--ink:#ececee;--muted:#9a9aa0;--faint:#636368;--line:#3a3a3e;
+  --accent:#0a84ff;--rec:#ff453a;--ok:#32d74b;--warn:#ffd60a;--err:#ff6961;--chip:#38383c;--sel:#3d3d42;
+  --s1:#64d2ff;--s2:#ffd60a;--s3:#32d74b;--s4:#bf5af2;--s5:#ff9f0a;--s6:#ff6482}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;background:var(--bg);color:var(--ink);display:flex}
+button{font:inherit;color:inherit;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+a.btn{text-decoration:none;color:inherit;display:inline-block}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* sidebar */
+aside{width:320px;flex:none;height:100vh;display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 20px 6px}
+.brand h1{font-size:20px;margin:0;font-weight:650;letter-spacing:-.01em}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--faint)}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--warn)}
+.brand .offline{margin-left:auto;font-size:12px;color:var(--muted);background:var(--chip);padding:2px 9px;border-radius:99px}
+
+.recorder{margin:12px 16px;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--panel2);text-align:center}
+.recbtn{width:76px;height:76px;border-radius:50%;border:none;background:var(--accent);display:grid;place-items:center;margin:4px auto 8px;transition:transform .12s;box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 18%,transparent)}
+.recbtn:hover{transform:scale(1.04)}
+.recbtn .inner{width:26px;height:26px;border-radius:50%;background:#fff;transition:all .15s}
+.recbtn.on .inner{border-radius:5px;width:24px;height:24px}
+.recbtn.on{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 11px color-mix(in srgb,var(--accent) 10%,transparent)}}
+.timer{font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;letter-spacing:.02em}
+.hint{color:var(--muted);font-size:13px}
+.meters{display:grid;gap:6px;margin:12px 0 4px;text-align:left}
+.meter{display:grid;grid-template-columns:62px 1fr;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.bar{height:6px;border-radius:9px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
+.rowlinks{display:flex;justify-content:center;gap:14px;margin-top:10px;font-size:13px}
+.linkbtn{background:none;border:none;padding:0;color:var(--accent);font-size:13px}
+.settings{display:none;text-align:left;margin-top:12px;border-top:1px solid var(--line);padding-top:12px;font-size:13px}
+.settings.open{display:grid;gap:10px}
+.settings label{display:grid;gap:4px;color:var(--muted)}
+.settings select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel)}
+
+.askall{margin:0 16px 8px;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel);text-align:left}
+.askall:hover,.item:hover{background:var(--panel2)}
+.askall.active{background:var(--sel);border-color:transparent}
+.listhead{padding:10px 20px 4px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.list{overflow:auto;flex:1;padding:0 8px 16px}
+.item{display:block;width:100%;text-align:left;background:none;border:none;border-radius:10px;padding:9px 12px}
+.item.active{background:var(--sel)}
+.item .t{font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .m{font-size:12.5px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.pill{font-size:11.5px;padding:1px 8px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.pill.busy{color:var(--warn)}.pill.err{color:var(--err)}
+.empty{color:var(--muted);font-size:13.5px;padding:8px 12px}
+
+/* main */
+main{flex:1;height:100vh;overflow:auto}
+.wrap{max-width:860px;margin:0 auto;padding:30px 36px 80px}
+.head{display:flex;align-items:flex-start;gap:12px}
+.head h2{font-size:26px;line-height:1.25;margin:0;font-weight:650;letter-spacing:-.015em;flex:1;cursor:text}
+.head h2 input{font-size:26px;font-weight:650;width:100%;border:none;border-bottom:2px solid var(--accent);background:none;outline:none;padding:0}
+.sub{color:var(--muted);font-size:14px;margin:6px 0 18px;display:flex;flex-wrap:wrap;gap:6px 14px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:6px 12px;font-size:13.5px}
+.btn:hover{background:var(--panel2)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.danger{color:var(--err)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:8px 0 22px}
+.tab{background:none;border:none;padding:9px 14px;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted);font-weight:550}
+.tab.on{color:var(--ink);border-color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
+.card h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.summary{font-size:16.5px;line-height:1.65;margin:0}
+ul.clean{margin:0;padding-left:20px}ul.clean li{margin:5px 0}
+.todo{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line)}
+.todo:first-of-type{border-top:none}
+.todo input{margin-top:5px;accent-color:var(--accent)}
+.todo .meta{font-size:12.5px;color:var(--muted)}
+.todo.done .task{text-decoration:line-through;color:var(--muted)}
+
+.player{position:sticky;top:0;background:var(--bg);padding:8px 0 12px;z-index:2}
+.player audio{width:100%}
+.spk{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px;align-items:center}
+.spkchip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 10px;background:var(--panel);font-size:13px}
+.spkchip input{border:none;background:none;width:110px;outline:none;font-weight:600}
+.sw{width:9px;height:9px;border-radius:50%}
+.utt{display:grid;grid-template-columns:72px 1fr;gap:12px;padding:9px 6px;border-radius:9px}
+.utt:hover{background:var(--panel)}
+.utt.now{background:var(--sel)}
+.ts{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums;background:none;border:none;padding:2px 0;text-align:left}
+.ts:hover{color:var(--accent)}
+.who{font-weight:650;font-size:13.5px}
+
+.mmwrap{overflow:auto;padding:10px 0 20px}
+.mm ul{list-style:none;margin:0;padding:0 0 0 30px;display:flex;flex-direction:column;justify-content:center;position:relative}
+.mm>ul{padding-left:0}
+.mm ul ul::before{content:"";position:absolute;left:0;top:50%;width:30px;border-top:1.5px solid var(--line)}
+.mm li{display:flex;align-items:center;position:relative;padding:5px 0 5px 22px}
+.mm>ul>li{padding-left:0}
+.mm li::before{content:"";position:absolute;left:0;top:50%;width:22px;border-top:1.5px solid var(--line)}
+.mm li::after{content:"";position:absolute;left:0;top:0;bottom:0;border-left:1.5px solid var(--line)}
+.mm li:first-child::after{top:50%}.mm li:last-child::after{bottom:50%}
+.mm li:only-child::after,.mm>ul>li::before,.mm>ul>li::after{display:none}
+.node{padding:7px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-size:13.5px;max-width:300px;flex:none}
+.node.root{background:var(--accent);color:#fff;border:none;font-weight:650;font-size:15px;max-width:220px}
+.node.topic{font-weight:650;cursor:pointer;border-width:1.5px}
+.node.topic.closed{opacity:.75}
+.node.topic.closed::after{content:" +"}
+
+.ask{display:flex;flex-direction:column;gap:14px}
+.msg{padding:12px 16px;border-radius:14px;max-width:88%;white-space:pre-wrap}
+.msg.q{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.msg.a{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
+.cite{font-size:11.5px;vertical-align:super;background:var(--chip);border:none;border-radius:6px;padding:0 5px;margin:0 1px;color:var(--accent)}
+.srcs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;white-space:normal}
+.src{font-size:12px;border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:3px 8px}
+.askbox{display:flex;gap:8px;position:sticky;bottom:0;background:var(--bg);padding:12px 0}
+.askbox input{flex:1;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);outline:none}
+.askbox input:focus{border-color:var(--accent)}
+.suggest{display:flex;flex-wrap:wrap;gap:8px}
+.suggest button{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:5px 12px;font-size:13px}
+.err{color:var(--err);font-size:13px}
+
+.steps{display:grid;gap:8px;margin:14px 0}
+.step{display:flex;gap:10px;align-items:center;color:var(--faint)}
+.step.cur{color:var(--ink);font-weight:600}.step.past{color:var(--ok)}
+.spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.checks{display:grid;gap:8px}
+.check{display:flex;gap:10px;align-items:baseline}
+.check code{font-size:12.5px;background:var(--chip);padding:1px 6px;border-radius:5px}
+.okmark{color:var(--ok);font-weight:700}.badmark{color:var(--warn);font-weight:700}
+.hero{text-align:center;padding:40px 0 10px}
+.hero h2{font-size:28px;margin:0 0 6px}
+.banner{background:var(--sel);border-radius:10px;padding:10px 14px;font-size:13.5px;margin-bottom:16px}
+
+/* ---------- theme layer ---------- */
+body{font-size:14px;letter-spacing:-.005em;background:radial-gradient(55% 60% at 10% 0%,rgba(0,122,255,.10),transparent 60%),radial-gradient(45% 55% at 100% 10%,rgba(255,45,85,.07),transparent 60%),radial-gradient(50% 50% at 80% 100%,rgba(52,199,89,.07),transparent 60%),var(--bg)}
+aside{margin:8px;height:calc(100vh - 16px);border-radius:18px;background:rgba(246,246,250,.62);backdrop-filter:blur(40px) saturate(1.9);-webkit-backdrop-filter:blur(40px) saturate(1.9);
+  border:1px solid rgba(255,255,255,.75);box-shadow:0 8px 30px rgba(30,40,80,.10),inset 0 1px 0 rgba(255,255,255,.9)}
+.brand h1{font-size:16px;font-weight:650}.brand .offline{background:rgba(118,118,128,.12)}
+.recorder{background:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.9);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.recbtn{width:66px;height:66px;background:#fff;box-shadow:0 0 0 3px #d1d1d6,0 4px 14px rgba(0,0,0,.08);animation:none!important}
+.recbtn .inner{width:52px;height:52px;background:var(--rec);border-radius:50%}
+.recbtn.on .inner{width:26px;height:26px;border-radius:6px}
+.timer{font-weight:300;font-size:28px;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:rgba(0,0,0,.08)}.bar i{background:linear-gradient(90deg,#34c759 0,#34c759 65%,#ffcc00 85%,#ff3b30)}
+.askall{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.85);border-radius:10px;font-weight:550}
+.askall.active{background:var(--sel);color:#fff;border-color:transparent}.askall.active .hint{color:rgba(255,255,255,.8)}
+.listhead{text-transform:none;letter-spacing:0;font-weight:600;font-size:11.5px;color:var(--faint)}
+.item{border-radius:8px;padding:7px 10px}.item.active{background:var(--sel);color:#fff}.item.active .m{color:rgba(255,255,255,.85)}
+.item .t{font-weight:600;font-size:13.5px}
+.head h2{font-size:28px;font-weight:700;letter-spacing:-.02em}
+.tabs{display:inline-flex;background:var(--chip);border:none;border-radius:99px;padding:3px;gap:0;margin:10px 0 22px}
+.tab{border:none;border-radius:99px;padding:5px 20px;margin:0;font-size:13px;color:var(--ink);font-weight:500}
+.tab.on{background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.15),0 0 0 .5px rgba(0,0,0,.04)}
+.card{border:none;border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.05),0 0 0 .5px rgba(0,0,0,.06)}
+.card h3{text-transform:none;letter-spacing:0;font-size:13px;color:var(--muted)}.summary{font-size:15px}
+.btn{border:none;box-shadow:0 0 0 .5px rgba(0,0,0,.15),0 1px 1.5px rgba(0,0,0,.08);border-radius:7px;padding:4px 12px;font-size:13px;background:var(--panel)}
+.btn.primary{background:var(--accent)}.btn.danger{color:var(--err)}
+.msg.q{background:var(--accent);border-radius:18px;border-bottom-right-radius:5px}
+.msg.a{background:#e9e9eb;border:none;border-radius:18px;border-bottom-left-radius:5px}
+.askbox{background:none}.askbox input{border-radius:18px;border:.5px solid rgba(0,0,0,.15)}
+.node{border:none;box-shadow:0 1px 3px rgba(0,0,0,.1),0 0 0 .5px rgba(0,0,0,.05)}.node.root{background:var(--accent)}
+.settings select{border-radius:7px;border:none;box-shadow:0 0 0 .5px rgba(0,0,0,.15),0 1px 1px rgba(0,0,0,.06)}
+.player{background:transparent;backdrop-filter:blur(20px)}.utt:hover{background:rgba(0,0,0,.035)}
+.banner{background:rgba(255,159,10,.14)}
+@media (prefers-color-scheme: dark){
+  body{background:var(--bg)}
+  aside{margin:0;height:100vh;border-radius:0;background:#19191b;border:none;border-right:1px solid #000;box-shadow:none;backdrop-filter:none}
+  .brand .offline{background:#2a2a2d}
+  .recorder{background:linear-gradient(#26262a,#1f1f22);border:1px solid #333;border-radius:10px;box-shadow:none}
+  .recbtn{width:64px;height:64px;background:#2c2c30;box-shadow:inset 0 0 0 3px #48484d,0 0 0 1px #000}
+  .recbtn .inner{width:30px;height:30px;box-shadow:0 0 14px rgba(255,69,58,.6)}.recbtn.on .inner{border-radius:4px}
+  .timer{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:26px;color:var(--rec);font-weight:500}
+  .bar{height:8px;border-radius:2px;background:#111}.bar i{background:linear-gradient(90deg,#32d74b 0,#32d74b 65%,#ffd60a 85%,#ff453a)}
+  .askall{background:#232326;border:1px solid #333;border-radius:8px}.askall.active{background:var(--sel)}
+  .item{border-radius:6px}.item.active{background:var(--sel);box-shadow:inset 3px 0 0 var(--rec)}
+  .head h2{font-size:26px;font-weight:650}
+  .tabs{display:flex;background:none;border-radius:0;padding:0;border-bottom:1px solid #333;gap:4px}
+  .tab{border-radius:0;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--muted);padding:9px 14px}
+  .tab.on{background:none;box-shadow:none;color:#fff;border-color:var(--rec)}
+  .card{background:var(--panel);border:1px solid #38383c;border-radius:8px;box-shadow:none}
+  .card h3{color:var(--faint);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em}
+  .btn{background:#38383c;border:1px solid #444;box-shadow:none;border-radius:6px}
+  .msg.a{background:var(--panel);border:1px solid #3a3a3e}
+  .askbox input{background:#2a2a2d;border:1px solid #444;border-radius:8px}
+  .node{background:#2a2a2d;border:1px solid #444;box-shadow:none;border-radius:6px}
+  .settings select{background:#2a2a2d;box-shadow:none;border:1px solid #444}
+  .player{background:var(--bg)}.utt:hover{background:#2a2a2d}
+  .banner{background:rgba(255,214,10,.12)}
+}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><span class="dot" id="healthDot" title="System status"></span><h1>Isma3</h1><span class="offline">On this Mac</span></div>
+
+  <div class="recorder">
+    <button class="recbtn" id="recBtn" aria-label="Start recording"><span class="inner"></span></button>
+    <div class="timer" id="timer">00:00</div>
+    <div class="hint" id="recHint">Tap to record</div>
+    <div class="meters">
+      <div class="meter"><span>Mic</span><div class="bar"><i id="micLvl"></i></div></div>
+      <div class="meter" id="callMeter"><span>Call audio</span><div class="bar"><i id="callLvl"></i></div></div>
+    </div>
+    <div class="rowlinks">
+      <button class="linkbtn" id="setBtn">Sources</button>
+      <button class="linkbtn" id="upBtn">Upload audio</button>
+      <input type="file" id="fileIn" accept="audio/*,video/*" hidden>
+    </div>
+    <div class="settings" id="settings">
+      <label>Microphone<select id="micSel"></select></label>
+      <label>Call audio (BlackHole)<select id="callSel"></select></label>
+      <label>Number of speakers<select id="spkSel">
+        <option value="">Work it out</option><option>1</option><option>2</option><option>3</option>
+        <option>4</option><option>5</option><option>6</option></select></label>
+    </div>
+  </div>
+
+  <button class="askall" id="askAllBtn">Ask Isma3 <span class="hint" style="margin-left:auto">all recordings</span></button>
+  <div class="listhead">Recordings</div>
+  <div class="list" id="list"></div>
+</aside>
+
+<main id="main"><div class="wrap" id="view"></div></main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = s => { s = Math.floor(s || 0); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return (h ? h + ":" + String(m).padStart(2,"0") : String(m).padStart(2,"0")) + ":" + String(x).padStart(2,"0"); };
+const STAGES = ["queued","converting","transcribing","speakers","notes","indexing","exporting","done"];
+const LABEL = {queued:"Waiting",converting:"Preparing audio",transcribing:"Transcribing",speakers:"Identifying speakers",
+  notes:"Writing summary",indexing:"Indexing for Ask",exporting:"Saving to Obsidian",done:"Done",error:"Failed"};
+const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+                set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { let d = ""; try { d = (await r.json()).detail; } catch {} throw new Error(d || r.statusText); }
+  return r.json();
+}
+
+let recordings = [], current = null, currentData = null, tab = "summary", view = "home";
+const chats = {}; // id or "all" -> [{q, a, sources, err}]
+
+/* ------------------------------------------------------------ list & polling */
+async function refresh() {
+  try { recordings = await api("/api/recordings"); } catch { return; }
+  renderList();
+  if (view === "rec" && current) {
+    const m = recordings.find(r => r.id === current);
+    if (!m) { showHome(); return; }
+    if (!currentData || m.stage !== currentData.meta.stage || m.title !== currentData.meta.title) await openRec(current, true);
+  }
+  if (view === "home") renderHome();
+}
+setInterval(() => { if (recordings.some(r => !["done","error"].includes(r.stage)) || view === "home") refresh(); }, 2500);
+
+function renderList() {
+  const el = $("#list");
+  if (!recordings.length) { el.innerHTML = `<div class="empty">Nothing yet. Your recordings will appear here.</div>`; return; }
+  el.innerHTML = recordings.map(r => {
+    const d = new Date(r.created);
+    const busy = !["done","error"].includes(r.stage);
+    const pill = r.stage === "error" ? `<span class="pill err">Failed</span>` :
+      busy ? `<span class="pill busy">${LABEL[r.stage]}…</span>` : "";
+    return `<button class="item ${r.id === current && view === "rec" ? "active" : ""}" data-id="${r.id}">
+      <div class="t">${esc(r.title)}</div>
+      <div class="m">${d.toLocaleDateString("en-GB",{day:"numeric",month:"short"})} · ${d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}${r.duration ? " · " + fmt(r.duration) : ""} ${pill}</div></button>`;
+  }).join("");
+  el.querySelectorAll(".item").forEach(b => b.onclick = () => { tab = "summary"; openRec(b.dataset.id); });
+}
+
+/* ------------------------------------------------------------ home */
+let healthData = null;
+async function loadHealth() {
+  try { healthData = await api("/api/health"); } catch { healthData = null; }
+  const ok = healthData && Object.values(healthData.checks).every(c => c.ok);
+  $("#healthDot").className = "dot " + (ok ? "ok" : "bad");
+  $("#healthDot").title = ok ? "Everything is set up" : "Setup needs attention";
+  if (view === "home") renderHome();
+}
+function showHome() { view = "home"; current = null; currentData = null; $("#askAllBtn").classList.remove("active"); renderList(); renderHome(); }
+function renderHome() {
+  const checks = healthData ? Object.entries(healthData.checks) : [];
+  const allOk = checks.length && checks.every(([,c]) => c.ok);
+  $("#view").innerHTML = `
+    <div class="hero"><h2>Ready when you are${healthData?.name ? ", " + esc(healthData.name) : ""}</h2>
+    <p class="hint">Press record for in-person chats, or set Call audio to BlackHole to capture Zoom, Teams and phone calls.<br>
+    Everything is transcribed and summarised here on your Mac.</p></div>
+    <div class="card"><h3>Setup check</h3>
+      ${!healthData ? `<div class="hint">Checking…</div>` : `<div class="checks">${checks.map(([k,c]) =>
+        `<div class="check"><span class="${c.ok ? "okmark" : "badmark"}">${c.ok ? "✓" : "!"}</span><span>${esc({ffmpeg:"FFmpeg"}[k] || k[0].toUpperCase() + k.slice(1))}</span>
+         ${c.ok ? "" : `<span class="hint">Fix: <code>${esc(c.fix)}</code></span>`}</div>`).join("")}</div>
+        ${allOk ? `<p class="hint" style="margin:12px 0 0">All good. ${healthData.vault ? `Notes also go to <b>${esc(healthData.folder)}</b> in your Obsidian vault.` : `Your notes stay in Isma3. Add an Obsidian vault in config.json to save copies there too.`}</p>` : ""}`}
+    </div>`;
+}
+
+/* ------------------------------------------------------------ recording detail */
+async function openRec(id, keepScroll) {
+  view = "rec"; current = id; $("#askAllBtn").classList.remove("active");
+  try { currentData = await api("/api/recordings/" + id); } catch { showHome(); return; }
+  renderList(); renderRec(keepScroll);
+}
+
+function speakerColour(key) { const n = (parseInt(key.slice(1)) - 1) % 6 + 1; return `var(--s${n})`; }
+function sName(meta, key) { return (meta.speakers || {})[key] || key.replace("S", "Speaker "); }
+
+function renderRec(keepScroll) {
+  const { meta, transcript, notes } = currentData;
+  const scroll = $("#main").scrollTop;
+  const d = new Date(meta.created);
+  const busy = !["done","error"].includes(meta.stage);
+  const obs = meta.export_path ? `obsidian://open?path=${encodeURIComponent(meta.export_path)}` : null;
+  let body = "";
+  if (busy) {
+    const at = STAGES.indexOf(meta.stage);
+    body = `<div class="card"><h3>Processing</h3><div class="steps">${STAGES.slice(1, -1).map((s, i) => {
+      const idx = i + 1; const cls = idx < at ? "past" : idx === at ? "cur" : "";
+      return `<div class="step ${cls}">${idx < at ? "✓" : idx === at ? `<span class="spin"></span>` : "○"} ${LABEL[s]}</div>`; }).join("")}
+      </div><div class="hint">The first recording takes longer while the models load. You can keep recording meanwhile.</div></div>`;
+  } else if (meta.stage === "error" && !notes) {
+    body = `<div class="card"><h3>Something went wrong</h3><p class="err">${esc(meta.error)}</p><button class="btn primary" data-act="retry">Retry</button></div>`;
+  } else {
+    body = `<div class="tabs">${["summary","transcript","mindmap","ask"].map(t =>
+      `<button class="tab ${tab === t ? "on" : ""}" data-tab="${t}">${{summary:"Summary",transcript:"Transcript",mindmap:"Mind map",ask:"Ask"}[t]}</button>`).join("")}</div>
+      <div id="tabBody"></div>`;
+  }
+  $("#view").innerHTML = `
+    <div class="head"><h2 id="titleH" title="Click to rename">${esc(meta.title)}</h2></div>
+    <div class="sub"><span>${d.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}, ${d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</span>
+      ${meta.duration ? `<span>${fmt(meta.duration)}</span>` : ""}
+      ${Object.keys(meta.speakers || {}).length ? `<span>${Object.keys(meta.speakers).length} speaker${Object.keys(meta.speakers).length > 1 ? "s" : ""}</span>` : ""}</div>
+    ${meta.stage === "error" && notes ? `<div class="banner err">${esc(meta.error)} <button class="btn" data-act="retry">Retry</button></div>` : ""}
+    ${meta.export_error ? `<div class="banner">Not saved to Obsidian: ${esc(meta.export_error)}</div>` : ""}
+    ${busy ? "" : `<div class="actions" style="margin-bottom:6px">
+      ${obs ? `<a class="btn" href="${obs}">Open in Obsidian</a>` : ""}
+      ${transcript.length ? `<button class="btn" data-act="regen" title="Rewrite the summary, e.g. after renaming speakers">Regenerate notes</button>` : ""}
+      <a class="btn" href="/api/recordings/${meta.id}/audio" download>Download audio</a>
+      <button class="btn danger" data-act="delete">Delete</button></div>`}
+    ${body}`;
+  $("#titleH").onclick = editTitle;
+  document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { tab = b.dataset.tab; renderRec(); });
+  document.querySelectorAll("[data-act]").forEach(b => b.onclick = () => act(b.dataset.act));
+  if (!busy && (notes || meta.stage === "done")) renderTab();
+  if (keepScroll) $("#main").scrollTop = scroll;
+}
+
+function renderTab() {
+  const { meta, transcript, notes } = currentData;
+  const el = $("#tabBody"); if (!el) return;
+  if (tab === "summary") {
+    if (!notes) { el.innerHTML = `<p class="hint">No notes yet.</p>`; return; }
+    const doneKey = "todo:" + meta.id;
+    const ticked = new Set(JSON.parse(store.get(doneKey) || "[]"));
+    el.innerHTML = `
+      <div class="card"><h3>Summary</h3><p class="summary">${esc(notes.summary)}</p></div>
+      ${notes.key_takeaways?.length ? `<div class="card"><h3>Key takeaways</h3><ul class="clean">${notes.key_takeaways.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}
+      <div class="card"><h3>Action items</h3>${notes.action_items?.length ? notes.action_items.map((a, i) => `
+        <label class="todo ${ticked.has(i) ? "done" : ""}"><input type="checkbox" data-i="${i}" ${ticked.has(i) ? "checked" : ""}>
+        <span><span class="task">${esc(a.task)}</span>${a.owner || a.due ? `<div class="meta">${[a.owner, a.due && "Due " + a.due].filter(Boolean).map(esc).join(" · ")}</div>` : ""}</span></label>`).join("")
+        : `<p class="hint" style="margin:0">No action items in this one.</p>`}</div>`;
+    el.querySelectorAll(".todo input").forEach(c => c.onchange = () => {
+      const i = +c.dataset.i; c.checked ? ticked.add(i) : ticked.delete(i);
+      c.closest(".todo").classList.toggle("done", c.checked); store.set(doneKey, JSON.stringify([...ticked]));
+    });
+  } else if (tab === "transcript") {
+    const keys = Object.keys(meta.speakers || {});
+    el.innerHTML = `
+      <div class="player"><audio id="aud" controls preload="metadata" src="/api/recordings/${meta.id}/audio"></audio></div>
+      ${keys.length > 0 ? `<div class="spk"><span class="hint">Speakers:</span>${keys.map(k =>
+        `<span class="spkchip"><span class="sw" style="background:${speakerColour(k)}"></span><input data-k="${k}" value="${esc(sName(meta, k))}" aria-label="Rename ${esc(k)}"></span>`).join("")}
+        <span class="hint">Click a name to rename</span></div>` : ""}
+      ${transcript.length ? transcript.map((u, i) => `
+        <div class="utt" data-s="${u.start}" data-e="${u.end}"><button class="ts" data-seek="${u.start}">${fmt(u.start)}</button>
+        <div><div class="who" style="color:${speakerColour(u.speaker)}">${esc(sName(meta, u.speaker))}</div>${esc(u.text)}</div></div>`).join("")
+        : `<p class="hint">No speech was detected.</p>`}`;
+    const aud = $("#aud");
+    el.querySelectorAll("[data-seek]").forEach(b => b.onclick = () => { aud.currentTime = +b.dataset.seek; aud.play(); });
+    const utts = [...el.querySelectorAll(".utt")];
+    aud.ontimeupdate = () => { const t = aud.currentTime; utts.forEach(u => u.classList.toggle("now", t >= +u.dataset.s && t < +u.dataset.e)); };
+    if (pendingSeek != null) { const t = pendingSeek; pendingSeek = null;
+      aud.addEventListener("loadedmetadata", () => { aud.currentTime = t; }, { once: true });
+      const target = utts.find(u => +u.dataset.e > t); target?.scrollIntoView({ block: "center" }); }
+    el.querySelectorAll(".spkchip input").forEach(inp => {
+      const save = async () => { const v = inp.value.trim(); if (!v || v === sName(meta, inp.dataset.k)) return;
+        try { currentData.meta = await api(`/api/recordings/${meta.id}`, { method: "PATCH", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ speakers: { [inp.dataset.k]: v } }) }); renderRec(true); } catch (e) { alert(e.message); } };
+      inp.onblur = save; inp.onkeydown = e => { if (e.key === "Enter") inp.blur(); };
+    });
+  } else if (tab === "mindmap") {
+    if (!notes?.topics?.length) { el.innerHTML = `<p class="hint">No mind map for this one.</p>`; return; }
+    el.innerHTML = `<div class="mmwrap"><div class="mm"><ul><li><span class="node root">${esc(meta.title)}</span><ul>${
+      notes.topics.map((t, i) => `<li><span class="node topic" style="border-color:var(--s${i % 6 + 1});color:var(--s${i % 6 + 1})">${esc(t.topic)}</span>${
+        t.points?.length ? `<ul>${t.points.map(p => `<li><span class="node">${esc(p)}</span></li>`).join("")}</ul>` : ""}</li>`).join("")
+    }</ul></li></ul></div></div><p class="hint">Click a topic to fold it away.</p>`;
+    el.querySelectorAll(".node.topic").forEach(n => n.onclick = () => {
+      const ul = n.nextElementSibling; if (!ul) return; const hide = ul.style.display !== "none";
+      ul.style.display = hide ? "none" : ""; n.classList.toggle("closed", hide); });
+  } else if (tab === "ask") {
+    renderAsk(el, meta.id, ["What were the main decisions?", "What did I agree to do?", "Draft a follow-up email"]);
+  }
+}
+let pendingSeek = null;
+
+async function editTitle() {
+  const h = $("#titleH"); if (h.querySelector("input")) return;
+  const old = currentData.meta.title;
+  h.innerHTML = `<input value="${esc(old)}" aria-label="Title">`;
+  const inp = h.querySelector("input"); inp.focus(); inp.select();
+  const done = async save => { const v = inp.value.trim();
+    if (save && v && v !== old) { try { currentData.meta = await api(`/api/recordings/${current}`, { method: "PATCH",
+      headers: {"Content-Type":"application/json"}, body: JSON.stringify({ title: v }) }); refresh(); } catch (e) { alert(e.message); } }
+    renderRec(true); };
+  inp.onkeydown = e => { if (e.key === "Enter") done(true); if (e.key === "Escape") done(false); };
+  inp.onblur = () => done(true);
+}
+
+async function act(a) {
+  const id = current;
+  try {
+    if (a === "retry") await api(`/api/recordings/${id}/retry`, { method: "POST" });
+    if (a === "regen") await api(`/api/recordings/${id}/regenerate`, { method: "POST" });
+    if (a === "delete") {
+      if (!confirm("Delete this recording from Isma3? Its Obsidian note stays where it is.")) return;
+      await api(`/api/recordings/${id}`, { method: "DELETE" }); showHome(); refresh(); return;
+    }
+    await refresh(); openRec(id);
+  } catch (e) { alert(e.message); }
+}
+
+/* ------------------------------------------------------------ ask */
+function renderAsk(el, scope, suggestions) {
+  const key = scope || "all"; const msgs = chats[key] = chats[key] || [];
+  const citeify = (text, sources) => esc(text).replace(/\[(\d+)\]/g, (m, n) => {
+    const s = sources.find(x => x.n === +n); return s ? `<button class="cite" data-id="${s.id}" data-t="${s.start}" title="${esc(s.title)} at ${fmt(s.start)}">${n}</button>` : m; });
+  el.innerHTML = `<div class="ask" id="askList">${msgs.length ? msgs.map(m => `
+      <div class="msg q">${esc(m.q)}</div>
+      ${m.pending ? `<div class="msg a"><span class="spin"></span> Thinking…</div>` :
+        m.err ? `<div class="msg a err">${esc(m.err)}</div>` :
+        `<div class="msg a">${citeify(m.a, m.sources)}${!scope && m.sources.length ? `<div class="srcs">${
+          [...new Map(m.sources.map(s => [s.id, s])).values()].map(s => `<button class="src" data-id="${s.id}" data-t="${s.start}">${esc(s.title)} · ${esc(s.date)}</button>`).join("")}</div>` : ""}</div>`}`).join("")
+      : `<div class="suggest">${suggestions.map(s => `<button>${esc(s)}</button>`).join("")}</div>`}</div>
+    <form class="askbox" id="askForm"><input id="askIn" placeholder="${scope ? "Ask about this recording…" : "Ask anything about your recordings…"}" autocomplete="off">
+      <button class="btn primary">Ask</button></form><div class="err" id="askErr"></div>`;
+  el.querySelectorAll(".suggest button").forEach(b => b.onclick = () => { $("#askIn").value = b.textContent; send(); });
+  el.querySelectorAll("[data-id]").forEach(b => b.onclick = () => { pendingSeek = +b.dataset.t; tab = "transcript"; openRec(b.dataset.id); });
+  const send = async () => {
+    const q = $("#askIn").value.trim();
+    if (!q) { $("#askErr").textContent = "Type a question first."; return; }
+    const m = { q, pending: true }; msgs.push(m); renderAsk(el, scope, suggestions);
+    try { const r = await api("/api/ask", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ question: q, recording_id: scope }) });
+      m.a = r.answer; m.sources = r.sources; } catch (e) { m.err = e.message; }
+    m.pending = false; if (document.body.contains(el)) renderAsk(el, scope, suggestions);
+  };
+  $("#askForm").onsubmit = e => { e.preventDefault(); send(); };
+  $("#askIn").oninput = () => { $("#askErr").textContent = ""; };
+  $("#askIn").focus();
+}
+$("#askAllBtn").onclick = () => {
+  view = "askall"; current = null; renderList(); $("#askAllBtn").classList.add("active");
+  $("#view").innerHTML = `<div class="head"><h2>Ask Isma3</h2></div><div class="sub">Searches every recording on this Mac.</div><div id="tabBody"></div>`;
+  renderAsk($("#tabBody"), null, ["What did I promise to do this week?", "When did we last talk about the budget?", "Summarise my meetings with Sara"]);
+};
+
+/* ------------------------------------------------------------ recording */
+let rec = null;
+const micSel = $("#micSel"), callSel = $("#callSel"), spkSel = $("#spkSel");
+
+async function loadDevices(askPermission) {
+  if (askPermission) { try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } catch {} }
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput");
+  const label = d => d.label || "Microphone";
+  const mics = devs.filter(d => !/blackhole/i.test(d.label));
+  micSel.innerHTML = mics.map(d => `<option value="${esc(d.deviceId)}">${esc(label(d))}</option>`).join("") || `<option value="">Default microphone</option>`;
+  const bh = devs.filter(d => /blackhole/i.test(d.label));
+  callSel.innerHTML = `<option value="">Off (mic only)</option>` + devs.map(d => `<option value="${esc(d.deviceId)}">${esc(label(d))}</option>`).join("");
+  const savedMic = store.get("mic"), savedCall = store.get("call");
+  if (savedMic && mics.some(d => d.deviceId === savedMic)) micSel.value = savedMic;
+  if (savedCall !== null && (savedCall === "" || devs.some(d => d.deviceId === savedCall))) callSel.value = savedCall;
+  else if (bh.length) callSel.value = bh[0].deviceId;
+  $("#callMeter").style.opacity = callSel.value ? 1 : .4;
+}
+micSel.onchange = () => store.set("mic", micSel.value);
+callSel.onchange = () => { store.set("call", callSel.value); $("#callMeter").style.opacity = callSel.value ? 1 : .4; };
+spkSel.onchange = () => store.set("spk", spkSel.value);
+spkSel.value = store.get("spk") || "";
+$("#setBtn").onclick = async () => { const s = $("#settings"); s.classList.toggle("open"); if (s.classList.contains("open")) await loadDevices(true); };
+navigator.mediaDevices?.addEventListener?.("devicechange", () => loadDevices(false));
+
+function meterFor(ctx, src, barEl, dest) {
+  // the analyser sits in the signal path (it passes audio through unchanged) so the browser keeps it running
+  const an = ctx.createAnalyser(); an.fftSize = 2048; src.connect(an); an.connect(dest);
+  const buf = new Float32Array(an.fftSize); let level = 0;
+  return () => { an.getFloatTimeDomainData(buf); let p = 0; for (const v of buf) p = Math.max(p, Math.abs(v));
+    level = Math.max(p, level * 0.85); barEl.style.width = Math.min(100, Math.sqrt(level) * 130) + "%"; };
+}
+
+async function startRecording() {
+  if (!navigator.mediaDevices?.getUserMedia) { alert("This browser can't record audio. Use Safari or Chrome."); return; }
+  await loadDevices(true);
+  const ctx = new AudioContext(); await ctx.resume();
+  const dest = ctx.createMediaStreamDestination();
+  const streams = [], meters = [], nodes = []; // nodes: keep references so the browser doesn't drop them
+  const open = async id => navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  try {
+    const mic = await open(micSel.value); streams.push(mic);
+    const ms = ctx.createMediaStreamSource(mic); nodes.push(ms); meters.push(meterFor(ctx, ms, $("#micLvl"), dest));
+    if (callSel.value) {
+      const call = await open(callSel.value); streams.push(call);
+      const cs = ctx.createMediaStreamSource(call); nodes.push(cs); meters.push(meterFor(ctx, cs, $("#callLvl"), dest));
+    }
+  } catch (e) {
+    streams.forEach(s => s.getTracks().forEach(t => t.stop())); ctx.close();
+    alert("Couldn't open the microphone: " + e.message + "\nCheck System Settings › Privacy & Security › Microphone."); return;
+  }
+  const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+  const mr = new MediaRecorder(dest.stream, type ? { mimeType: type, audioBitsPerSecond: 96000 } : {});
+  const chunks = []; mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+  mr.start(1000);
+  const t0 = Date.now();
+  const tick = setInterval(() => { $("#timer").textContent = fmt((Date.now() - t0) / 1000); meters.forEach(m => m()); }, 100);
+  rec = { ctx, mr, chunks, streams, tick, t0, meters, nodes, type: mr.mimeType || type, withCall: !!callSel.value };
+  $("#recBtn").classList.add("on"); $("#recBtn").setAttribute("aria-label", "Stop recording");
+  $("#recHint").textContent = rec.withCall ? "Recording you + call audio" : "Recording · tap to stop";
+}
+
+async function stopRecording() {
+  const r = rec; rec = null;
+  clearInterval(r.tick);
+  await new Promise(res => { r.mr.onstop = res; r.mr.stop(); });
+  r.streams.forEach(s => s.getTracks().forEach(t => t.stop())); r.ctx.close();
+  $("#recBtn").classList.remove("on"); $("#recBtn").setAttribute("aria-label", "Start recording");
+  $("#micLvl").style.width = $("#callLvl").style.width = "0";
+  $("#timer").textContent = "00:00"; $("#recHint").textContent = "Saving…";
+  const blob = new Blob(r.chunks, { type: r.type || "audio/webm" });
+  const ext = /mp4/.test(r.type) ? "m4a" : "webm";
+  await uploadBlob(blob, "recording." + ext, r.withCall ? "mic+call" : "mic");
+}
+
+async function uploadBlob(blob, name, source) {
+  const fd = new FormData(); fd.append("file", blob, name); fd.append("num_speakers", spkSel.value); fd.append("source", source);
+  try { const m = await api("/api/recordings", { method: "POST", body: fd });
+    $("#recHint").textContent = "Tap to record"; await refresh(); tab = "summary"; openRec(m.id);
+  } catch (e) {
+    $("#recHint").textContent = "Upload failed";
+    // keep the audio safe if the server was unreachable
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    alert("Couldn't save to Isma3 (" + e.message + "). The audio has been downloaded so nothing is lost.");
+  }
+}
+
+$("#recBtn").onclick = () => rec ? stopRecording() : startRecording();
+$("#upBtn").onclick = () => $("#fileIn").click();
+$("#fileIn").onchange = e => { const f = e.target.files[0]; if (f) { $("#recHint").textContent = "Uploading…"; uploadBlob(f, f.name, "upload"); } e.target.value = ""; };
+window.addEventListener("beforeunload", e => { if (rec) { e.preventDefault(); e.returnValue = ""; } });
+document.addEventListener("keydown", e => { if (e.key === " " && e.altKey) { e.preventDefault(); $("#recBtn").click(); } });
+
+showHome(); refresh(); loadHealth(); setInterval(loadHealth, 15000);
+</script>
+</body>
+</html>

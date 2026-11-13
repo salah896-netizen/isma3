@@ -1,0 +1,12 @@
+{
+  "name": "",
+  "obsidian_vault": "",
+  "obsidian_folder": "Isma3",
+  "whisper_model": "mlx-community/whisper-large-v3-turbo",
+  "language": null,
+  "llm_model": "qwen3:14b",
+  "embed_model": "nomic-embed-text",
+  "ollama_url": "http://127.0.0.1:11434",
+  "speaker_threshold": 0.9,
+  "port": 8765
+}

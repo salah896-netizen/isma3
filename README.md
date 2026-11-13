@@ -10,7 +10,7 @@ Isma3 records your meetings and calls, then gives you:
 
 You can also ask questions across all your recordings. Everything runs on your Mac: there's no account, cloud or subscription.
 
-**[Landing page and install guide →](https://salah896-netizen.github.io/isma3/)**
+**[Landing page →](https://salah896-netizen.github.io/isma3/)** · **[User Guide →](https://salah896-netizen.github.io/isma3/guide.html)**
 
 ![Isma3](docs/img/light_summary.jpg)
 
@@ -53,6 +53,14 @@ Wear headphones if you can, so voices aren't recorded twice. Volume keys don't w
 - **Upload audio**: works with voice memos and any audio or video file.
 - **Rename speakers**: do it in the Transcript tab, then press **Regenerate notes** so the summary uses the real names.
 - **Ask Isma3**: searches every recording, and each answer links to the moment it came from.
+
+## Camera timecode and Premiere Pro
+- **Upload files** accepts camera clips (MOV, MP4, MXF) and sound-recorder WAVs. Isma3 reads their timecode and frame rate, keeps only the audio, and stamps every transcript line with camera timecode.
+- **Timecode** lets you set or correct the start timecode and frame rate by hand. Drop-frame is supported: `01:00:00;00`.
+- **Export** offers three files:
+  - SRT captions for Premiere (they line up with a sequence made from the clip)
+  - a CSV select list (TC in, TC out, speaker, text)
+  - a timecoded transcript
 
 ## Settings (`config.json`)
 | Key | What it does |

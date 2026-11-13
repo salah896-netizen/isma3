@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isma3 User Guide</title>
+<meta name="description" content="How to install and use Isma3: recording, calls, speakers, camera timecode, Premiere Pro exports, Ask and Obsidian.">
+<link rel="icon" href="img/icon.png">
+<style>
+:root{--ink:#1d1d1f;--muted:#6e6e73;--line:#d2d2d7;--soft:#f5f5f7;--blue:#0071e3}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;font:17px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased;letter-spacing:-.016em}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+nav.top{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.75);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);border-bottom:1px solid rgba(0,0,0,.08)}
+nav.top .in{max-width:1180px;margin:0 auto;padding:0 22px;height:52px;display:flex;align-items:center;gap:20px;font-size:13px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:600;font-size:17px;color:var(--ink)}.logo img{width:26px;height:26px}
+nav.top .r{margin-left:auto;display:flex;gap:20px;align-items:center}nav.top .r a{color:var(--ink);opacity:.8}
+.pill{background:var(--blue);color:#fff!important;opacity:1!important;border-radius:980px;padding:4px 12px;font-size:12px}
+.layout{max-width:1180px;margin:0 auto;padding:0 22px;display:grid;grid-template-columns:240px minmax(0,1fr);gap:56px}
+aside{position:sticky;top:76px;align-self:start;max-height:calc(100vh - 90px);overflow:auto;padding:30px 0}
+aside p{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 6px}
+aside a{display:block;color:var(--ink);font-size:14px;padding:4px 10px;border-radius:7px;opacity:.85}
+aside a:hover{background:var(--soft);text-decoration:none;opacity:1}aside a.on{background:#e8f0fd;color:var(--blue);opacity:1}
+main{padding:44px 0 100px;min-width:0}
+.hero{display:flex;gap:22px;align-items:center;margin-bottom:12px}.hero img{width:84px;height:84px}
+h1{font-size:44px;line-height:1.08;margin:0;letter-spacing:-.02em}
+.lede{font-size:21px;color:var(--muted);margin:12px 0 30px;max-width:720px}
+h2{font-size:30px;letter-spacing:-.015em;margin:64px 0 10px;padding-top:6px;border-top:1px solid var(--line);padding-top:36px}
+h3{font-size:20px;margin:30px 0 6px}
+p{margin:10px 0}
+ol,ul{padding-left:22px}li{margin:6px 0}
+code,kbd{font:14px "SF Mono",ui-monospace,Menlo,monospace;background:var(--soft);border-radius:6px;padding:2px 6px}
+kbd{border:1px solid var(--line);border-bottom-width:2px;background:#fff}
+.cmd{display:flex;gap:10px;align-items:center;background:#1d1d1f;color:#f5f5f7;border-radius:12px;padding:13px 15px;font:14px/1.5 "SF Mono",ui-monospace,Menlo,monospace;margin:12px 0}
+.cmd span{flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
+.cmd button{flex:none;background:#3a3a3c;color:#fff;border:none;border-radius:8px;padding:6px 12px;font:13px -apple-system,sans-serif;cursor:pointer}
+figure{margin:20px 0 26px}figure img{width:100%;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.12),0 0 0 1px rgba(0,0,0,.06);display:block}
+figure.narrow img{max-width:340px}
+figcaption{font-size:14px;color:var(--muted);margin-top:10px}
+.note{background:var(--soft);border-radius:14px;padding:14px 18px;margin:18px 0;font-size:15.5px}
+.note b:first-child{display:block;margin-bottom:2px}
+.note.warn{background:#fff6e5}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:14px 0}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:13px;color:var(--muted);font-weight:600}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:44px;margin:16px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:14px;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:var(--muted);text-align:center}
+@media (max-width:900px){.layout{grid-template-columns:1fr}aside{display:none}.two{grid-template-columns:1fr}h1{font-size:34px}}
+</style>
+</head>
+<body>
+<nav class="top"><div class="in">
+  <a class="logo" href="./"><img src="img/icon.png" alt="">Isma3</a><span style="color:var(--muted)">User Guide</span>
+  <div class="r"><a href="./">Home</a><a href="https://github.com/salah896-netizen/isma3">GitHub</a><a class="pill" href="./#install">Download</a></div>
+</div></nav>
+
+<div class="layout">
+<aside id="toc">
+  <p>Get started</p>
+  <a href="#install">Install</a><a href="#first">Your first recording</a><a href="#update">Updating</a>
+  <p>Recording</p>
+  <a href="#record">Record in person</a><a href="#calls">Record calls</a><a href="#upload">Upload files</a>
+  <p>Your notes</p>
+  <a href="#notes">Summary, actions and mind map</a><a href="#speakers">Fix speakers</a><a href="#ask">Ask Isma3</a><a href="#obsidian">Obsidian</a>
+  <p>For production</p>
+  <a href="#timecode">Camera timecode</a><a href="#premiere">Premiere Pro</a>
+  <p>Help</p>
+  <a href="#settings">Settings</a><a href="#trouble">Troubleshooting</a><a href="#privacy">Privacy</a>
+</aside>
+
+<main>
+<div class="hero"><img src="img/icon.png" alt=""><div><h1>Isma3 User Guide</h1></div></div>
+<p class="lede">Everything you need to record conversations and calls, get clean notes, and take transcripts into the edit. It all happens on your Mac.</p>
+
+<h2 id="install">Install</h2>
+<p>You need a Mac with Apple Silicon (M1 or newer), 16&nbsp;GB of memory and about 15&nbsp;GB of free space. Allow around 30 minutes, which is mostly waiting for downloads.</p>
+<ol class="steps">
+  <li><b>Open Terminal.</b> Press <kbd>⌘</kbd> <kbd>Space</kbd>, type <i>Terminal</i> and press Return.</li>
+  <li><b>Paste this line and press Return.</b> It downloads Isma3 into an <code>Isma3</code> folder in your home folder, then starts the installer.
+    <div class="cmd"><span id="c1">curl -fsSL https://raw.githubusercontent.com/salah896-netizen/isma3/main/get.sh | bash</span><button onclick="cp('c1',this)">Copy</button></div></li>
+  <li><b>Answer the installer's questions.</b> It asks for your first name (for the greeting), your Obsidian vault (optional; press Return to skip) and your Mac password, once or twice. Nothing appears on screen as you type your password. That's normal.</li>
+  <li><b>Wait for "All done".</b> The installer sets up Homebrew, ffmpeg, Python, BlackHole (for calls), Ollama and the AI models, then adds Isma3 to your Applications.</li>
+</ol>
+<div class="note"><b>Prefer not to use Terminal?</b>Download the <a href="https://github.com/salah896-netizen/isma3/archive/refs/heads/main.zip">ZIP</a>, unzip it into your home folder and rename it <code>Isma3</code>. macOS blocks downloaded scripts, so you'll still need Terminal once: run <code>cd ~/Isma3 &amp;&amp; xattr -dr com.apple.quarantine . &amp;&amp; ./install.command</code>.</div>
+
+<h2 id="first">Your first recording</h2>
+<ol class="steps">
+  <li>Press <kbd>⌘</kbd> <kbd>Space</kbd>, type <b>Isma3</b> and press Return. Isma3 opens in its own window.</li>
+  <li>To keep it handy, right-click its Dock icon and choose <b>Options → Keep in Dock</b>.</li>
+  <li>Click the red button and allow microphone access the first time. Speak for a minute, then click again to stop.</li>
+  <li>Watch the steps tick through: <i>Transcribing</i>, <i>Identifying speakers</i>, <i>Writing summary</i>. The first run is slower while the models load.</li>
+</ol>
+<div class="note"><b>The home screen has a setup check.</b>Every item should show a tick. If one doesn't, the check shows the exact command that fixes it.</div>
+
+<h2 id="update">Updating</h2>
+<p>Run the install line again. It updates the app and leaves your recordings, settings and models alone.</p>
+<div class="cmd"><span id="c2">curl -fsSL https://raw.githubusercontent.com/salah896-netizen/isma3/main/get.sh | bash</span><button onclick="cp('c2',this)">Copy</button></div>
+<p>After an update, close the Isma3 window and open Isma3 again. If the app ever says <i>"Isma3 has been updated"</i>, do the same.</p>
+
+<h2 id="record">Record in person</h2>
+<div class="two">
+  <div>
+    <p>Click the red button, or press <kbd>⌥</kbd> <kbd>Space</kbd> while Isma3 is in front. The <b>Mic</b> level bar moves as people talk.</p>
+    <p>Open <b>Sources</b> to:</p>
+    <ul>
+      <li>choose the <b>microphone</b>, e.g. a USB mic or lavalier receiver</li>
+      <li>set the <b>number of speakers</b>. If you know it's two people, say so. It's the biggest single accuracy boost.</li>
+    </ul>
+    <p>When you stop, processing starts straight away. You can start another recording while it works.</p>
+  </div>
+  <figure class="narrow"><img src="img/g_sources.jpg" alt="Isma3 recorder with Sources open"><figcaption>Sources: microphone, call audio and number of speakers.</figcaption></figure>
+</div>
+<div class="note warn"><b>Always tell people you're recording.</b>Recording a private conversation without consent is illegal in many places, including South Australia.</div>
+
+<h2 id="calls">Record calls</h2>
+<p>Isma3 records your microphone (you) and <b>BlackHole</b> (everyone else, taken from your Mac's sound output) together. No bot joins the call.</p>
+<h3>One-time setup (2 minutes)</h3>
+<ol class="steps">
+  <li>Open <b>Audio MIDI Setup</b> (<kbd>⌘</kbd> <kbd>Space</kbd>, then type "Audio MIDI").</li>
+  <li>Click <b>+</b> at the bottom left and choose <b>Create Multi-Output Device</b>.</li>
+  <li>Tick your <b>headphones or speakers</b> first, then <b>BlackHole 2ch</b>. Turn on <b>Drift Correction</b> for BlackHole.</li>
+  <li>Double-click the device's name and rename it <b>Isma3 Calls</b>.</li>
+</ol>
+<h3>Before each call</h3>
+<ol class="steps">
+  <li><b>System Settings → Sound → Output:</b> choose <b>Isma3 Calls</b>.</li>
+  <li>In Isma3, open <b>Sources</b> and set <b>Call audio</b> to <b>BlackHole 2ch</b>. Isma3 remembers this.</li>
+  <li>Press record. Both bars should move: <b>Mic</b> when you talk and <b>Call audio</b> when they do.</li>
+  <li>After the call, switch your output back to normal so the volume keys work again.</li>
+</ol>
+<table>
+  <tr><th>App</th><th>Setting</th></tr>
+  <tr><td><b>Zoom</b></td><td>Settings → Audio → Speaker: <i>Same as System</i></td></tr>
+  <tr><td><b>Microsoft Teams</b></td><td>Settings → Devices → Speaker: <i>Isma3 Calls</i> (Teams ignores the system choice)</td></tr>
+  <tr><td><b>WhatsApp</b></td><td>Use the Mac app or WhatsApp Web. Calls on your iPhone don't reach the Mac, so they can't be captured.</td></tr>
+  <tr><td><b>FaceTime and iPhone calls</b></td><td>Calls you answer <i>on the Mac</i> are captured.</td></tr>
+</table>
+<div class="note"><b>Wear headphones.</b>Through speakers, your mic hears the other side too, and their voices appear twice.</div>
+
+<h2 id="upload">Upload files</h2>
+<p>Click <b>Upload files</b> to add audio or video recorded elsewhere. You can select several at once, and each becomes its own recording.</p>
+<ul>
+  <li><b>Voice memos and audio:</b> m4a, mp3, wav and more.</li>
+  <li><b>Camera clips:</b> MOV, MP4 and MXF. Isma3 keeps only the audio and deletes its copy of the video, so footage doesn't fill your disk. Your original files are never touched.</li>
+  <li><b>Sound recorder WAVs</b> (e.g. Zoom or Sound Devices) keep their timecode too.</li>
+</ul>
+
+<h2 id="notes">Summary, actions and mind map</h2>
+<p>Each recording has four tabs:</p>
+<table>
+  <tr><th>Tab</th><th>What's there</th></tr>
+  <tr><td><b>Summary</b></td><td>A short summary, key takeaways and action items with owners and due dates. Tick items off as you go.</td></tr>
+  <tr><td><b>Transcript</b></td><td>Who said what, with timestamps. Click a timestamp to hear that moment.</td></tr>
+  <tr><td><b>Mind map</b></td><td>The main topics at a glance. Click a topic to fold it away.</td></tr>
+  <tr><td><b>Ask</b></td><td>Questions about this one recording, e.g. "Draft a follow-up email".</td></tr>
+</table>
+<p>Click the title to rename a recording. <b>Regenerate notes</b> rewrites the summary, e.g. after you've named the speakers.</p>
+<figure><img src="img/light_summary.jpg" alt="Summary tab"><figcaption>The Summary tab.</figcaption></figure>
+
+<h2 id="speakers">Fix speakers</h2>
+<figure><img src="img/g_speakers.jpg" alt="Speaker controls on the Transcript tab"><figcaption>Speaker tools on the Transcript tab.</figcaption></figure>
+<ul>
+  <li><b>Name people:</b> click "Speaker 1" and type a name. Press <b>Regenerate notes</b> afterwards so the summary uses the real names.</li>
+  <li><b>One person split in two:</b> give both the same name and they merge.</li>
+  <li><b>Wrong number of people:</b> pick the right number under <i>Wrong number of speakers?</i> and press <b>Redo speakers</b>. It re-labels everyone without re-transcribing.</li>
+  <li><b>Best fix:</b> set <b>Sources → Number of speakers</b> <i>before</i> recording.</li>
+</ul>
+
+<h2 id="ask">Ask Isma3</h2>
+<p><b>Ask Isma3</b> in the sidebar searches every recording. Try questions like:</p>
+<ul>
+  <li>"What did I promise to do this week?"</li>
+  <li>"When did we last talk about the budget?"</li>
+</ul>
+<p>Answers cite their sources, and clicking a citation jumps to that moment in the audio.</p>
+<figure><img src="img/light_ask.jpg" alt="Ask Isma3"><figcaption>Answers link back to the moment they came from.</figcaption></figure>
+
+<h2 id="obsidian">Obsidian</h2>
+<p>If you gave the installer an Obsidian vault, each recording also becomes a note in an <code>Isma3</code> folder in your vault. The note has the summary, tick-box action items, a mind-map outline and the full transcript. Renaming speakers updates the note.</p>
+<p>To turn this on later, edit <code>~/Isma3/config.json</code> (see <a href="#settings">Settings</a>).</p>
+
+<h2 id="timecode">Camera timecode</h2>
+<p>When you upload a camera clip, Isma3 reads the clip's timecode and frame rate. Every transcript line then shows <b>camera timecode</b>, so you can find any line in the footage.</p>
+<figure><img src="img/g_timecode_transcript.jpg" alt="Transcript with camera timecode"><figcaption>Clip name, source timecode and frame rate in the header. Each line shows its camera timecode.</figcaption></figure>
+<h3>Set or correct timecode by hand</h3>
+<div class="two">
+  <div><ol class="steps">
+    <li>Open the recording and click <b>Timecode</b> (or <b>Add timecode</b>).</li>
+    <li>Type the timecode at the <i>very start</i> of the file, e.g. <code>10:00:00:00</code>.</li>
+    <li>Choose the frame rate (23.976, 24, 25, 29.97, 30, 50, 59.94 or 60) and press <b>Save</b>.</li>
+  </ol>
+  <p>For <b>drop-frame</b> at 29.97 or 59.94, type a semicolon before the frames: <code>01:00:00;00</code>.</p></div>
+  <figure><img src="img/g_tc.jpg" alt="Timecode panel"><figcaption>The Timecode panel.</figcaption></figure>
+</div>
+<div class="note"><b>Recording on the laptop while a camera rolls?</b>The two only line up if the camera runs time-of-day timecode, or you jam-sync it. Uploading the camera's own clip afterwards is always exact.</div>
+
+<h2 id="premiere">Premiere Pro</h2>
+<p>Open the recording and click <b>Export</b>:</p>
+<figure><img src="img/g_export.jpg" alt="Export menu"><figcaption>Export options.</figcaption></figure>
+<table>
+  <tr><th>Export</th><th>Use it for</th></tr>
+  <tr><td><b>Captions for Premiere (.srt)</b></td><td>Captions with speaker names, split into caption-sized lines.</td></tr>
+  <tr><td><b>Select list with timecode (.csv)</b></td><td>Every line with TC in, TC out, speaker and text. It opens in Excel, Numbers or Google Sheets, so you can highlight selects and build a paper edit.</td></tr>
+  <tr><td><b>Timecoded transcript (.txt)</b></td><td>The summary, action items and the full transcript stamped with camera timecode, ready to send to an editor or client.</td></tr>
+</table>
+<h3>Import the captions into Premiere</h3>
+<ol class="steps">
+  <li>In Premiere, right-click the clip and choose <b>New Sequence From Clip</b>. The sequence starts at the clip's first frame.</li>
+  <li><b>File → Import</b> the <code>.srt</code> file, then drag it onto the sequence at the very start.</li>
+  <li>The captions line up with the speech. Use them to scrub and find lines, or style them as burnt-in subtitles.</li>
+</ol>
+<div class="note"><b>Tip.</b>Find a quote in Isma3 (Ask: "where does she talk about the launch date?"), read its camera timecode, and type that timecode into Premiere's Source Monitor to jump straight there.</div>
+
+<h2 id="settings">Settings</h2>
+<p>Settings live in <code>~/Isma3/config.json</code>. Open it with any text editor, then close and reopen Isma3.</p>
+<table>
+  <tr><th>Setting</th><th>What it does</th></tr>
+  <tr><td><code>name</code></td><td>Your name, used in the greeting.</td></tr>
+  <tr><td><code>obsidian_vault</code></td><td>Your vault folder, e.g. <code>~/Documents/My Vault</code>. Leave it empty to switch Obsidian off.</td></tr>
+  <tr><td><code>obsidian_folder</code></td><td>The folder inside the vault. Default: <code>Isma3</code>.</td></tr>
+  <tr><td><code>language</code></td><td><code>null</code> detects the language automatically, or set one, e.g. <code>"en"</code> or <code>"ar"</code>.</td></tr>
+  <tr><td><code>llm_model</code></td><td>The model behind summaries and Ask. <code>qwen3:14b</code> is the default. <code>qwen3:8b</code> is faster on 16&nbsp;GB Macs. Run <code>ollama pull &lt;name&gt;</code> first.</td></tr>
+  <tr><td><code>speaker_threshold</code></td><td>Raise it (e.g. <code>1.0</code>) if one person keeps being split in two, and lower it (e.g. <code>0.8</code>) if different people are merged.</td></tr>
+</table>
+
+<h2 id="trouble">Troubleshooting</h2>
+<table>
+  <tr><th>Problem</th><th>Fix</th></tr>
+  <tr><td>"Couldn't reach Ollama"</td><td>Open the Ollama app (llama icon), then press <b>Retry</b> on the recording.</td></tr>
+  <tr><td>"Isma3 has been updated" or "Not Found"</td><td>Close the Isma3 window and open Isma3 again.</td></tr>
+  <tr><td>The Mic bar doesn't move</td><td>System Settings → Privacy &amp; Security → Microphone → allow Google Chrome (or your browser).</td></tr>
+  <tr><td>The Call audio bar doesn't move</td><td>Check that the output is <i>Isma3 Calls</i> and that Call audio is set to BlackHole 2ch. For Teams, also set its speaker to Isma3 Calls.</td></tr>
+  <tr><td>Voices appear twice</td><td>Wear headphones on calls.</td></tr>
+  <tr><td>The wrong number of speakers</td><td>See <a href="#speakers">Fix speakers</a>.</td></tr>
+  <tr><td>macOS says it can't verify Isma3</td><td>Right-click Isma3 in Applications, choose <b>Open</b>, then <b>Open</b> again. You only need to do this once.</td></tr>
+  <tr><td>Something failed mid-way</td><td>Press <b>Retry</b>. The audio is always kept.</td></tr>
+</table>
+
+<h2 id="privacy">Privacy</h2>
+<p>Isma3 has no account and no cloud. Recordings, transcripts and notes stay in <code>~/Isma3/data</code> on your Mac, and the AI models run locally. After installation it works offline.</p>
+<p>Deleting a recording in Isma3 removes it from that folder. Its Obsidian note, if any, stays where it is.</p>
+</main>
+</div>
+
+<footer>Isma3 is free and open source under the MIT licence. <a href="https://github.com/salah896-netizen/isma3">View on GitHub</a></footer>
+
+<script>
+function cp(id,b){const t=document.getElementById(id).textContent;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>{b.textContent="Copied";setTimeout(()=>b.textContent="Copy",1600)}).catch(()=>{b.textContent="Press ⌘C"})}
+const links=[...document.querySelectorAll("#toc a")];
+const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle("on",a.getAttribute("href")==="#"+e.target.id))}})},{rootMargin:"-30% 0px -65% 0px"});
+document.querySelectorAll("main h2[id]").forEach(h=>obs.observe(h));
+</script>
+</body>
+</html>

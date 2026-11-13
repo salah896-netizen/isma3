@@ -44,11 +44,11 @@ def recordings():
 @app.post("/api/recordings")
 async def upload(file: UploadFile = File(...), title: str = Form(""), num_speakers: str = Form(""),
                  source: str = Form("upload")):
-    data = await file.read()
-    if len(data) < 1000:
-        raise HTTPException(400, "That recording is empty.")
     n = int(num_speakers) if num_speakers.strip().isdigit() and int(num_speakers) > 0 else None
-    meta = P.create_recording(data, file.filename or "recording.webm", title, n, source)
+    try:
+        meta = P.create_recording(file.file, file.filename or "recording.webm", title, n, source)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     worker.submit(meta["id"])
     return P.get_meta(meta["id"])
 
@@ -57,9 +57,14 @@ async def upload(file: UploadFile = File(...), title: str = Form(""), num_speake
 def recording(rec_id: str):
     meta = _meta_or_404(rec_id)
     d = P.rec_path(rec_id)
+    transcript = P.read_json(d / "transcript.json", [])
+    if meta.get("tc_start"):
+        for u in transcript:
+            u["tc"] = P.tc_at(meta, u["start"])
     return {
         "meta": meta,
-        "transcript": P.read_json(d / "transcript.json", []),
+        "fps_label": P.fps_label(meta.get("fps")),
+        "transcript": transcript,
         "notes": P.read_json(d / "notes.json", None),
     }
 
@@ -84,6 +89,9 @@ def original(rec_id: str):
 class Patch(BaseModel):
     title: str | None = None
     speakers: dict[str, str] | None = None
+    tc_start: str | None = None   # "HH:MM:SS:FF" (or ";" before frames for drop-frame)
+    fps: str | None = None        # one of P.FPS_CHOICES keys, e.g. "25" or "29.97"
+    tc_clear: bool = False
 
 
 @app.patch("/api/recordings/{rec_id}")
@@ -98,6 +106,16 @@ def patch(rec_id: str, body: Patch):
             if k in speakers and v.strip():
                 speakers[k] = v.strip()[:40]
         changes["speakers"] = speakers
+    if body.tc_clear:
+        changes.update(tc_start=None, tc_from=None)
+    elif body.tc_start is not None:
+        fps = P.FPS_CHOICES.get(body.fps or "", body.fps or meta.get("fps") or "")
+        tc = body.tc_start.strip().replace(".", ":")
+        if not fps or not P.valid_tc(tc, fps):
+            raise HTTPException(400, "Enter timecode as HH:MM:SS:FF, with frames below the frame rate.")
+        if ";" in tc and round(P._fps_value(fps)) not in (30, 60):
+            raise HTTPException(400, "Drop-frame (;) only applies to 29.97 or 59.94 fps.")
+        changes.update(tc_start=tc, fps=fps, tc_from="set manually")
     meta = P.update_meta(rec_id, **changes)
     if body.speakers:
         P.merge_speakers(rec_id)  # two speakers given the same name become one
@@ -128,6 +146,25 @@ def regenerate(rec_id: str):
         raise HTTPException(400, "No transcript yet. Use Retry instead.")
     worker.submit(rec_id, "notes")
     return P.get_meta(rec_id)
+
+
+@app.get("/api/recordings/{rec_id}/export/{fmt}")
+def export(rec_id: str, fmt: str):
+    from fastapi.responses import Response
+    meta = _meta_or_404(rec_id)
+    if not (P.rec_path(rec_id) / "transcript.json").exists():
+        raise HTTPException(400, "No transcript yet.")
+    makers = {"srt": (P.export_srt, "application/x-subrip"), "txt": (P.export_txt, "text/plain; charset=utf-8"),
+              "csv": (P.export_csv, "text/csv; charset=utf-8")}
+    if fmt not in makers:
+        raise HTTPException(404, "Unknown export")
+    make, media = makers[fmt]
+    name = (P._safe_filename(meta.get("source_name") and Path(meta["source_name"]).stem or meta["title"]) or "isma3")
+    if fmt == "csv":
+        name += " select list"
+    from urllib.parse import quote
+    return Response(make(rec_id), media_type=media,
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}.{fmt}"})
 
 
 class SpeakerCount(BaseModel):

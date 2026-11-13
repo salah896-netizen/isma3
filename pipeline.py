@@ -42,7 +42,7 @@ DEFAULT_CONFIG = {
     "port": 8765,
 }
 
-VERSION = "1.3"  # bump with every update; the page compares it to spot a stale engine
+VERSION = "1.4"  # bump with every update; the page compares it to spot a stale engine
 
 STAGES = {
     "queued": "Waiting",
@@ -111,20 +111,33 @@ def list_recordings() -> list[dict]:
     return sorted(out, key=lambda m: m.get("created", ""), reverse=True)
 
 
-def create_recording(src_bytes: bytes, filename: str, title: str | None, num_speakers: int | None,
+def create_recording(src, filename: str, title: str | None, num_speakers: int | None,
                      source: str) -> dict:
+    """src is a file object (streamed to disk, so multi-GB camera files are fine) or bytes."""
     rec_id = uuid.uuid4().hex[:12]
     d = REC_DIR / rec_id
     d.mkdir(parents=True)
     ext = (Path(filename).suffix or ".webm").lower()
     if not re.fullmatch(r"\.[a-z0-9]{1,5}", ext):
         ext = ".webm"
-    (d / f"original{ext}").write_bytes(src_bytes)
+    target = d / f"original{ext}"
+    if isinstance(src, (bytes, bytearray)):
+        target.write_bytes(src)
+    else:
+        with open(target, "wb") as out:
+            shutil.copyfileobj(src, out, 8 * 1024 * 1024)
+    if target.stat().st_size < 1000:
+        shutil.rmtree(d, ignore_errors=True)
+        raise ValueError("That recording is empty.")
     now = datetime.now()
+    upload_title = Path(filename).stem if source == "upload" and filename else ""
     meta = {
         "id": rec_id,
-        "title": (title or "").strip() or f"Recording {now:%d %b %Y, %H:%M}",
+        "title": (title or "").strip() or upload_title or f"Recording {now:%d %b %Y, %H:%M}",
         "title_locked": bool((title or "").strip()),
+        "source_name": Path(filename).name if source == "upload" else None,
+        "recorded_at": now.isoformat(timespec="seconds"),
+        "tc_start": None, "fps": None, "tc_from": None,
         "created": now.isoformat(timespec="seconds"),
         "original": f"original{ext}",
         "source": source,
@@ -159,6 +172,212 @@ def transcript_text(meta: dict, utterances: list[dict]) -> str:
     return "\n".join(
         f"[{fmt_ts(u['start'])}] {speaker_name(meta, u['speaker'])}: {u['text']}" for u in utterances
     )
+
+
+# ---------------------------------------------------------------- camera timecode
+
+FPS_CHOICES = {"23.976": "24000/1001", "24": "24/1", "25": "25/1", "29.97": "30000/1001", "30": "30/1",
+               "50": "50/1", "59.94": "60000/1001", "60": "60/1"}
+
+
+def _fps_value(fps: str) -> float:
+    if "/" in fps:
+        n, dd = fps.split("/")
+        return float(n) / float(dd)
+    return float(fps)
+
+
+def tc_to_frames(tc: str, fps: str) -> int:
+    nominal = round(_fps_value(fps))
+    drop = ";" in tc
+    h, m, s_, f = (int(x) for x in re.split(r"[:;.]", tc))
+    total = (h * 3600 + m * 60 + s_) * nominal + f
+    if drop:
+        dropf = round(nominal / 15)  # 2 at 29.97, 4 at 59.94
+        minutes = 60 * h + m
+        total -= dropf * (minutes - minutes // 10)
+    return total
+
+
+def frames_to_tc(n: int, fps: str, drop: bool) -> str:
+    nominal = round(_fps_value(fps))
+    if drop:
+        dropf = round(nominal / 15)
+        per_10min = round(_fps_value(fps) * 600)
+        per_min = nominal * 60 - dropf
+        d10, rem = divmod(n, per_10min)
+        n += 9 * dropf * d10 + (dropf * ((rem - dropf) // per_min) if rem > dropf else 0)
+    f = n % nominal
+    s_ = (n // nominal) % 60
+    m = (n // (nominal * 60)) % 60
+    h = (n // (nominal * 3600)) % 24
+    return f"{h:02d}:{m:02d}:{s_:02d}{';' if drop else ':'}{f:02d}"
+
+
+def valid_tc(tc: str, fps: str) -> bool:
+    m = re.fullmatch(r"(\d{2}):(\d{2}):(\d{2})[:;.](\d{2})", tc or "")
+    return bool(m) and int(m[2]) < 60 and int(m[3]) < 60 and int(m[4]) < round(_fps_value(fps)) and int(m[1]) < 24
+
+
+def tc_at(meta: dict, seconds: float) -> str | None:
+    """Camera timecode for a point `seconds` into the recording, or None if no timecode is set."""
+    tc, fps = meta.get("tc_start"), meta.get("fps")
+    if not tc or not fps:
+        return None
+    n = tc_to_frames(tc, fps) + int(round(seconds * _fps_value(fps)))
+    return frames_to_tc(n, fps, ";" in tc)
+
+
+def probe_media(path: Path) -> dict:
+    """Reads timecode, frame rate and whether there's video, using ffprobe."""
+    out = subprocess.run(["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)],
+                         capture_output=True, text=True)
+    info = json.loads(out.stdout or "{}")
+    streams = info.get("streams", [])
+    fmt_tags = {k.lower(): v for k, v in (info.get("format", {}).get("tags") or {}).items()}
+    video = next((st for st in streams if st.get("codec_type") == "video"
+                  and not st.get("disposition", {}).get("attached_pic")), None)
+    fps = None
+    if video:
+        fps = video.get("r_frame_rate") or video.get("avg_frame_rate")
+        if fps in (None, "0/0"):
+            fps = None
+    tc = fmt_tags.get("timecode")
+    for st in streams:
+        tags = {k.lower(): v for k, v in (st.get("tags") or {}).items()}
+        tc = tc or tags.get("timecode")
+    result = {"has_video": bool(video), "fps": fps, "tc_start": None, "tc_from": None}
+    if tc and fps and valid_tc(tc, fps):
+        result.update(tc_start=tc, tc_from="camera file")
+    elif fmt_tags.get("time_reference"):  # Broadcast WAV from a sound recorder: samples since midnight
+        audio = next((st for st in streams if st.get("codec_type") == "audio"), {})
+        rate = int(audio.get("sample_rate") or 48000)
+        fps = fps or "25/1"
+        secs = int(fmt_tags["time_reference"]) / rate
+        n = int(round(secs * _fps_value(fps)))
+        result.update(fps=fps, tc_start=frames_to_tc(n, fps, False), tc_from="sound recorder")
+    return result
+
+
+def prepare_camera_file(rec_id: str) -> dict:
+    """Read the clip's timecode, then keep only its audio so footage doesn't fill the disk."""
+    d = rec_path(rec_id)
+    meta = get_meta(rec_id)
+    src = d / meta["original"]
+    info = probe_media(src)
+    changes = {}
+    if info["has_video"] or info["tc_start"]:
+        changes["title_locked"] = True  # camera clips keep their clip name (A001_C003…), which editors rely on
+    if info["tc_start"] and not meta.get("tc_start"):
+        changes.update(tc_start=info["tc_start"], fps=info["fps"], tc_from=info["tc_from"])
+    elif info["fps"] and not meta.get("fps"):
+        changes["fps"] = info["fps"]
+    if info["has_video"]:
+        audio = d / "original.m4a"
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-vn", "-map", "0:a:0?",
+                        "-c:a", "aac", "-b:a", "192k", str(audio)], check=True)
+        if audio.exists() and audio.stat().st_size > 1000:
+            src.unlink()
+            changes["original"] = "original.m4a"
+    return update_meta(rec_id, **changes) if changes else meta
+
+
+# ---------------------------------------------------------------- exports
+
+def _ts_srt(sec: float) -> str:
+    ms = int(round(sec * 1000))
+    return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+
+
+def caption_cues(rec_id: str, max_chars: int = 84, max_secs: float = 6.0) -> list[dict]:
+    """Short caption-sized cues with speaker names, built from word timings where available."""
+    d = rec_path(rec_id)
+    meta = get_meta(rec_id)
+    utts = read_json(d / "transcript.json", [])
+    words = []
+    for seg in read_json(d / "segments.json", []):
+        for w in seg.get("words") or []:
+            words.append((w["start"], w["end"], w["word"].strip()))
+    if not words:  # older recordings: spread each utterance's words across its time span
+        for u in utts:
+            ws = u["text"].split()
+            step = (u["end"] - u["start"]) / max(len(ws), 1)
+            words += [(u["start"] + i * step, u["start"] + (i + 1) * step, w) for i, w in enumerate(ws)]
+
+    def who(t):
+        for u in utts:
+            if u["start"] - 0.05 <= t <= u["end"] + 0.05:
+                return u["speaker"]
+        return min(utts, key=lambda u: abs(u["start"] - t))["speaker"] if utts else "S1"
+
+    cues, cur = [], None
+    for st, en, w in words:
+        if not w:
+            continue
+        spk = who(st)
+        if cur and (spk != cur["speaker"] or len(cur["text"]) + len(w) + 1 > max_chars or en - cur["start"] > max_secs
+                    or st - cur["end"] > 1.5):
+            cues.append(cur)
+            cur = None
+        if not cur:
+            cur = {"start": st, "end": en, "speaker": spk, "text": w}
+        else:
+            cur["text"] += " " + w
+            cur["end"] = en
+    if cur:
+        cues.append(cur)
+    for c in cues:
+        c["name"] = speaker_name(meta, c["speaker"])
+    return cues
+
+
+def export_srt(rec_id: str) -> str:
+    out = []
+    for i, c in enumerate(caption_cues(rec_id), 1):
+        out += [str(i), f"{_ts_srt(c['start'])} --> {_ts_srt(c['end'])}", f"{c['name']}: {c['text']}", ""]
+    return "\n".join(out)
+
+
+def export_txt(rec_id: str) -> str:
+    d = rec_path(rec_id)
+    meta = get_meta(rec_id)
+    notes = read_json(d / "notes.json", {}) or {}
+    utts = read_json(d / "transcript.json", [])
+    lines = [meta["title"], "=" * len(meta["title"])]
+    if meta.get("source_name"):
+        lines.append(f"Source file: {meta['source_name']}")
+    if meta.get("tc_start"):
+        lines.append(f"Timecode: starts {meta['tc_start']} at {fps_label(meta['fps'])} fps ({meta.get('tc_from') or 'set manually'})")
+    lines.append(f"Length: {fmt_ts(meta.get('duration') or 0)}")
+    if notes.get("summary"):
+        lines += ["", "SUMMARY", notes["summary"]]
+    if notes.get("action_items"):
+        lines += ["", "ACTION ITEMS"] + [f"- {a['task']}" + (f" ({a['owner']})" if a.get("owner") else "") for a in notes["action_items"]]
+    lines += ["", "TRANSCRIPT", ""]
+    for u in utts:
+        stamp = tc_at(meta, u["start"]) or fmt_ts(u["start"])
+        lines += [f"[{stamp}] {speaker_name(meta, u['speaker'])}", u["text"], ""]
+    return "\n".join(lines)
+
+
+def export_csv(rec_id: str) -> str:
+    import csv
+    import io
+    meta = get_meta(rec_id)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["TC In", "TC Out", "Speaker", "Text", "Clip time in", "Clip time out", "Source file"])
+    for u in read_json(rec_path(rec_id) / "transcript.json", []):
+        w.writerow([tc_at(meta, u["start"]) or "", tc_at(meta, u["end"]) or "", speaker_name(meta, u["speaker"]),
+                    u["text"], fmt_ts(u["start"]), fmt_ts(u["end"]), meta.get("source_name") or ""])
+    return "\ufeff" + buf.getvalue()  # BOM so Excel opens it as UTF-8
+
+
+def fps_label(fps: str | None) -> str:
+    if not fps:
+        return ""
+    v = _fps_value(fps)
+    return f"{v:.3f}".rstrip("0").rstrip(".") if abs(v - round(v)) > 0.001 else str(round(v))
 
 
 # ---------------------------------------------------------------- stage 1: audio
@@ -474,7 +693,7 @@ def obsidian_markdown(meta: dict, utterances: list[dict], notes: dict) -> str:
         out.append("")
     out.append("## Transcript")
     for u in utterances:
-        out.append(f"**{speaker_name(meta, u['speaker'])}** `{fmt_ts(u['start'])}` {u['text']}")
+        out.append(f"**{speaker_name(meta, u['speaker'])}** `{tc_at(meta, u['start']) or fmt_ts(u['start'])}` {u['text']}")
         out.append("")
     return "\n".join(out)
 
@@ -547,6 +766,8 @@ def process(rec_id: str, mode: str = "full") -> None:
         if mode in ("full", "speakers"):
             if mode == "full":
                 update_meta(rec_id, stage="converting", error=None)
+                if meta.get("source") == "upload":
+                    meta = prepare_camera_file(rec_id)
                 wav, duration = convert_audio(d, meta["original"])
                 update_meta(rec_id, duration=round(duration, 1))
                 update_meta(rec_id, stage="transcribing")

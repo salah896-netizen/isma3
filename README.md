@@ -54,6 +54,12 @@ Wear headphones if you can, so voices aren't recorded twice. Volume keys don't w
 - **Rename speakers**: do it in the Transcript tab, then press **Regenerate notes** so the summary uses the real names.
 - **Ask Isma3**: searches every recording, and each answer links to the moment it came from.
 
+## New in this version
+- **Live notes:** a rough transcript and rolling notes (key points, decisions, actions) build while you talk. When you stop, the full pass makes the final version.
+- **"Me" always right on calls:** with Call audio on, your mic and the call are recorded as separate channels, so your own lines are always labelled as you.
+- **Voices it remembers:** name someone once and Isma3 recognises them in future recordings. Manage known voices on the home screen.
+- **Interview mode:** for shoots, Isma3 picks the best soundbites with exact camera timecode in and out points, star ratings and themes, and exports them as a CSV select list. It switches on automatically for camera clips.
+
 ## Camera timecode and Premiere Pro
 - **Upload files** accepts camera clips (MOV, MP4, MXF) and sound-recorder WAVs. Isma3 reads their timecode and frame rate, keeps only the audio, and stamps every transcript line with camera timecode.
 - **Timecode** lets you set or correct the start timecode and frame rate by hand. Drop-frame is supported: `01:00:00;00`.

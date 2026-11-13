@@ -39,11 +39,13 @@ echo "== 3/5  Creating Isma3's private Python environment and installing its par
 echo "== 4/5  Downloading the transcription and speaker models (about 1.7 GB) =="
 ./download_models.sh
 
-echo "== 5/5  Downloading the summary and search models with Ollama (about 9 GB) =="
+echo "== 5/5  Downloading the summary and search models with Ollama (about 9 GB, plus 5 GB for live notes) =="
 OLLAMA=$(command -v ollama || echo /Applications/Ollama.app/Contents/Resources/ollama)
 curl -s http://127.0.0.1:11434/api/tags >/dev/null || { open -a Ollama; sleep 8; }
 "$OLLAMA" pull qwen3:14b
 "$OLLAMA" pull nomic-embed-text
+echo "== Downloading the faster model for live notes (about 5 GB) =="
+"$OLLAMA" pull qwen3:8b || echo "Skipped. Live notes will use the main model instead."
 
 echo "== Adding Isma3 to your Applications folder =="
 ./make_app.sh

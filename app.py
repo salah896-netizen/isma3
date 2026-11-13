@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+import live as L
 import pipeline as P
 
 app = FastAPI(title="Isma3")
@@ -43,10 +44,11 @@ def recordings():
 
 @app.post("/api/recordings")
 async def upload(file: UploadFile = File(...), title: str = Form(""), num_speakers: str = Form(""),
-                 source: str = Form("upload")):
+                 source: str = Form("upload"), channels: str = Form(""), style: str = Form("")):
     n = int(num_speakers) if num_speakers.strip().isdigit() and int(num_speakers) > 0 else None
     try:
-        meta = P.create_recording(file.file, file.filename or "recording.webm", title, n, source)
+        meta = P.create_recording(file.file, file.filename or "recording.webm", title, n, source,
+                                  split_channels=(channels == "split"), style=style)
     except ValueError as e:
         raise HTTPException(400, str(e))
     worker.submit(meta["id"])
@@ -58,14 +60,17 @@ def recording(rec_id: str):
     meta = _meta_or_404(rec_id)
     d = P.rec_path(rec_id)
     transcript = P.read_json(d / "transcript.json", [])
+    notes = P.read_json(d / "notes.json", None)
     if meta.get("tc_start"):
         for u in transcript:
             u["tc"] = P.tc_at(meta, u["start"])
+        for sb in (notes or {}).get("soundbites", []):
+            sb["tc_in"], sb["tc_out"] = P.tc_at(meta, sb["start"]), P.tc_at(meta, sb["end"])
     return {
         "meta": meta,
         "fps_label": P.fps_label(meta.get("fps")),
         "transcript": transcript,
-        "notes": P.read_json(d / "notes.json", None),
+        "notes": notes,
     }
 
 
@@ -92,6 +97,7 @@ class Patch(BaseModel):
     tc_start: str | None = None   # "HH:MM:SS:FF" (or ";" before frames for drop-frame)
     fps: str | None = None        # one of P.FPS_CHOICES keys, e.g. "25" or "29.97"
     tc_clear: bool = False
+    style: str | None = None      # "meeting" or "interview"
 
 
 @app.patch("/api/recordings/{rec_id}")
@@ -106,6 +112,8 @@ def patch(rec_id: str, body: Patch):
             if k in speakers and v.strip():
                 speakers[k] = v.strip()[:40]
         changes["speakers"] = speakers
+    if body.style in ("meeting", "interview"):
+        changes.update(style=body.style, style_auto=False)
     if body.tc_clear:
         changes.update(tc_start=None, tc_from=None)
     elif body.tc_start is not None:
@@ -118,6 +126,11 @@ def patch(rec_id: str, body: Patch):
         changes.update(tc_start=tc, fps=fps, tc_from="set manually")
     meta = P.update_meta(rec_id, **changes)
     if body.speakers:
+        for k, v in body.speakers.items():
+            if k in (meta.get("speakers") or {}):
+                P.remember_voice(v, rec_id, k)  # naming someone teaches Isma3 their voice
+        rec = [k for k in (meta.get("recognised") or []) if k not in body.speakers]
+        meta = P.update_meta(rec_id, recognised=rec)
         P.merge_speakers(rec_id)  # two speakers given the same name become one
     if meta.get("stage") == "done":  # keep the Obsidian note in step with renames
         try:
@@ -155,16 +168,66 @@ def export(rec_id: str, fmt: str):
     if not (P.rec_path(rec_id) / "transcript.json").exists():
         raise HTTPException(400, "No transcript yet.")
     makers = {"srt": (P.export_srt, "application/x-subrip"), "txt": (P.export_txt, "text/plain; charset=utf-8"),
-              "csv": (P.export_csv, "text/csv; charset=utf-8")}
+              "csv": (P.export_csv, "text/csv; charset=utf-8"),
+              "soundbites": (P.export_soundbites_csv, "text/csv; charset=utf-8")}
     if fmt not in makers:
         raise HTTPException(404, "Unknown export")
     make, media = makers[fmt]
     name = (P._safe_filename(meta.get("source_name") and Path(meta["source_name"]).stem or meta["title"]) or "isma3")
+    ext = fmt
     if fmt == "csv":
         name += " select list"
+    if fmt == "soundbites":
+        name, ext = name + " soundbites", "csv"
     from urllib.parse import quote
     return Response(make(rec_id), media_type=media,
-                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}.{fmt}"})
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}.{ext}"})
+
+
+@app.get("/api/voices")
+def voices():
+    lib = P.load_voices()
+    return [{"name": n, "samples": len(e["samples"]), "updated": e.get("updated")} for n, e in sorted(lib.items())]
+
+
+@app.delete("/api/voices/{name}")
+def forget(name: str):
+    if not P.forget_voice(name):
+        raise HTTPException(404, "Voice not found")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- live notes
+
+def _live_or_404(sid: str) -> "L.LiveSession":
+    s = L.get(sid)
+    if not s:
+        raise HTTPException(404, "Live session not found")
+    return s
+
+
+@app.post("/api/live/start")
+def live_start():
+    return L.start().state()
+
+
+@app.post("/api/live/{sid}/chunk")
+async def live_chunk(sid: str, request: Request):
+    s = _live_or_404(sid)
+    s.add(await request.body())
+    return {"ok": True, "lag": s.state()["lag"]}
+
+
+@app.get("/api/live/{sid}")
+def live_state(sid: str):
+    return _live_or_404(sid).state()
+
+
+@app.post("/api/live/{sid}/stop")
+def live_stop(sid: str):
+    s = _live_or_404(sid)
+    s.stopped = True
+    return s.state()
 
 
 class SpeakerCount(BaseModel):

@@ -5,8 +5,11 @@
   "whisper_model": "mlx-community/whisper-large-v3-turbo",
   "language": null,
   "llm_model": "qwen3:14b",
+  "live_llm_model": "qwen3:8b",
   "embed_model": "nomic-embed-text",
   "ollama_url": "http://127.0.0.1:11434",
   "speaker_threshold": 0.9,
+  "remember_voices": true,
+  "voice_match_threshold": 0.55,
   "port": 8765
 }

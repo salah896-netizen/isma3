@@ -100,6 +100,20 @@ ul.clean{margin:0;padding-left:20px}ul.clean li{margin:5px 0}
 details.menu{position:relative;display:inline-block}details.menu summary{list-style:none;cursor:pointer}details.menu summary::-webkit-details-marker{display:none}
 .menulist{position:absolute;z-index:5;top:110%;left:0;min-width:260px;background:var(--panel);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.18),0 0 0 .5px rgba(0,0,0,.1);padding:6px;display:grid}
 .menulist a{color:var(--ink);text-decoration:none;padding:7px 10px;border-radius:6px;font-size:13.5px}.menulist a:hover{background:var(--sel);color:#fff}
+.voices{display:flex;flex-wrap:wrap;gap:8px}.voice{display:flex;gap:8px;align-items:center;background:var(--chip);border-radius:99px;padding:4px 12px;font-size:13.5px}
+.known{color:var(--ok);font-weight:700;padding-right:6px}
+.stylerow{display:flex;gap:8px;align-items:center;margin:-8px 0 14px}.stylerow select{padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel)}
+.sb{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line)}.sb:first-of-type{border-top:none}
+.sbplay{width:30px;height:30px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:11px;margin-top:2px}
+.sbq{margin:0;font-size:16px;line-height:1.5;font-family:"New York",Georgia,serif}
+.sbmeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;font-size:13px}
+.stars{color:#ff9f0a;letter-spacing:1px}.stars span{color:var(--line)}
+.livedot{width:9px;height:9px;border-radius:50%;background:var(--rec);display:inline-block;margin-right:2px;animation:blink 1.2s infinite}@keyframes blink{50%{opacity:.3}}
+.livegrid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start}
+.livelines{max-height:58vh;overflow:auto}.liveline{display:grid;grid-template-columns:52px 1fr;gap:8px;padding:4px 0}
+.nowtopic{margin:0 0 10px;font-weight:600}.lh{display:block;margin:10px 0 2px;font-size:13px}
+.settings label.check{display:flex;flex-direction:row;gap:8px;align-items:center;color:var(--ink)}
+@media (max-width:900px){.livegrid{grid-template-columns:1fr}}
 .spkfix{display:flex;gap:8px;align-items:center;margin:-6px 0 16px}
 .spkfix select{padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel)}
 .spkchip{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 10px;background:var(--panel);font-size:13px}
@@ -237,6 +251,9 @@ aside{margin:8px;height:calc(100vh - 16px);border-radius:18px;background:rgba(24
       <label>Number of speakers<select id="spkSel">
         <option value="">Work it out</option><option>1</option><option>2</option><option>3</option>
         <option>4</option><option>5</option><option>6</option></select></label>
+      <label class="check"><input type="checkbox" id="liveChk"> Live notes while recording</label>
+      <label>Notes style<select id="styleSel">
+        <option value="">Automatic (interview for camera clips)</option><option value="meeting">Meeting</option><option value="interview">Interview or shoot</option></select></label>
     </div>
   </div>
 
@@ -252,7 +269,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = s => { s = Math.floor(s || 0); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
   return (h ? h + ":" + String(m).padStart(2,"0") : String(m).padStart(2,"0")) + ":" + String(x).padStart(2,"0"); };
-const APP_VERSION = "1.4";
+const APP_VERSION = "1.7";
 const STAGES = ["queued","converting","transcribing","speakers","notes","indexing","exporting","done"];
 const LABEL = {queued:"Waiting",converting:"Preparing audio",transcribing:"Transcribing",speakers:"Identifying speakers",
   notes:"Writing summary",indexing:"Indexing for Ask",exporting:"Saving to Obsidian",done:"Done",error:"Failed"};
@@ -322,8 +339,19 @@ function renderHome() {
         `<div class="check"><span class="${c.ok ? "okmark" : "badmark"}">${c.ok ? "✓" : "!"}</span><span>${esc({ffmpeg:"FFmpeg"}[k] || k[0].toUpperCase() + k.slice(1))}</span>
          ${c.ok ? "" : `<span class="hint">Fix: <code>${esc(c.fix)}</code></span>`}</div>`).join("")}</div>
         ${allOk ? `<p class="hint" style="margin:12px 0 0">All good. ${healthData.vault ? `Notes also go to <b>${esc(healthData.folder)}</b> in your Obsidian vault.` : `Your notes stay in Isma3. Add an Obsidian vault in config.json to save copies there too.`}</p>` : ""}`}
+    </div>
+    <div class="card"><h3>Voices Isma3 knows</h3>
+      ${voicesData.length ? `<div class="voices">${voicesData.map(v => `<span class="voice"><b>${esc(v.name)}</b>
+        <button class="linkbtn" data-forget="${esc(v.name)}" aria-label="Forget ${esc(v.name)}">Forget</button></span>`).join("")}</div>
+        <p class="hint" style="margin:10px 0 0">Isma3 labels these people automatically in new recordings. Voiceprints stay on this Mac.</p>`
+      : `<p class="hint" style="margin:0">None yet. Name someone in a transcript and Isma3 will recognise their voice next time.</p>`}
     </div>`;
+  document.querySelectorAll("[data-forget]").forEach(b => b.onclick = async () => {
+    try { await api("/api/voices/" + encodeURIComponent(b.dataset.forget), { method: "DELETE" }); await loadVoices(); renderHome(); } catch (e) { alert(e.message); }
+  });
 }
+let voicesData = [];
+async function loadVoices() { try { voicesData = await api("/api/voices"); } catch { voicesData = []; } }
 
 /* ------------------------------------------------------------ recording detail */
 async function openRec(id, keepScroll) {
@@ -371,7 +399,8 @@ function renderRec(keepScroll) {
       ${transcript.length ? `<details class="menu"><summary class="btn">Export ▾</summary><div class="menulist">
         <a href="/api/recordings/${meta.id}/export/srt" download>Captions for Premiere (.srt)</a>
         <a href="/api/recordings/${meta.id}/export/csv" download>Select list with timecode (.csv)</a>
-        <a href="/api/recordings/${meta.id}/export/txt" download>Timecoded transcript (.txt)</a></div></details>` : ""}
+        <a href="/api/recordings/${meta.id}/export/txt" download>Timecoded transcript (.txt)</a>
+        ${notes?.soundbites?.length ? `<a href="/api/recordings/${meta.id}/export/soundbites" download>Soundbites with timecode (.csv)</a>` : ""}</div></details>` : ""}
       <button class="btn" data-act="tc">${meta.tc_start ? "Timecode" : "Add timecode"}</button>
       <button class="btn danger" data-act="delete">Delete</button></div>`}
     <div id="tcPanel" class="card tcpanel" style="display:${tcOpen ? "block" : "none"}"><h3>Camera timecode</h3>
@@ -406,13 +435,31 @@ function renderTab() {
     if (!notes) { el.innerHTML = `<p class="hint">No notes yet.</p>`; return; }
     const doneKey = "todo:" + meta.id;
     const ticked = new Set(JSON.parse(store.get(doneKey) || "[]"));
+    const sbs = notes.soundbites || [];
     el.innerHTML = `
+      <div class="stylerow"><span class="hint">Notes style</span>
+        <select id="styleNow" aria-label="Notes style"><option value="meeting" ${meta.style !== "interview" ? "selected" : ""}>Meeting</option>
+        <option value="interview" ${meta.style === "interview" ? "selected" : ""}>Interview or shoot (soundbites)</option></select></div>
       <div class="card"><h3>Summary</h3><p class="summary">${esc(notes.summary)}</p></div>
+      ${meta.style === "interview" ? `<div class="card"><h3>Soundbites${sbs.length ? ` · ${sbs.length}` : ""}</h3>${sbs.length ? sbs.map((b, i) => `
+        <div class="sb"><button class="sbplay" data-sb="${i}" aria-label="Play soundbite">▶</button>
+          <div><p class="sbq">“${esc(b.quote)}”</p>
+          <div class="sbmeta"><b style="color:${speakerColour(b.speaker)}">${esc(sName(meta, b.speaker))}</b>
+            <span class="tcpill">${esc(b.tc_in || fmt(b.start))} – ${esc(b.tc_out || fmt(b.end))}</span>
+            <span class="stars" title="${b.strength} of 5">${"★".repeat(b.strength)}<span>${"★".repeat(5 - b.strength)}</span></span>
+            ${b.theme ? `<span class="pill">${esc(b.theme)}</span>` : ""}</div>
+          ${b.why ? `<p class="hint" style="margin:4px 0 0">${esc(b.why)}</p>` : ""}</div></div>`).join("")
+        : `<p class="hint" style="margin:0">No soundbites yet. Press <b>Regenerate notes</b> to find them.</p>`}</div>` : ""}
       ${notes.key_takeaways?.length ? `<div class="card"><h3>Key takeaways</h3><ul class="clean">${notes.key_takeaways.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}
       <div class="card"><h3>Action items</h3>${notes.action_items?.length ? notes.action_items.map((a, i) => `
         <label class="todo ${ticked.has(i) ? "done" : ""}"><input type="checkbox" data-i="${i}" ${ticked.has(i) ? "checked" : ""}>
         <span><span class="task">${esc(a.task)}</span>${a.owner || a.due ? `<div class="meta">${[a.owner, a.due && "Due " + a.due].filter(Boolean).map(esc).join(" · ")}</div>` : ""}</span></label>`).join("")
         : `<p class="hint" style="margin:0">No action items in this one.</p>`}</div>`;
+    $("#styleNow").onchange = async () => {
+      try { await api(`/api/recordings/${meta.id}`, { method: "PATCH", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ style: $("#styleNow").value }) });
+        await api(`/api/recordings/${meta.id}/regenerate`, { method: "POST" }); await refresh(); openRec(meta.id); } catch (e) { alert(e.message); }
+    };
+    el.querySelectorAll("[data-sb]").forEach(btn => btn.onclick = () => playSnippet(meta.id, sbs[+btn.dataset.sb], btn));
     el.querySelectorAll(".todo input").forEach(c => c.onchange = () => {
       const i = +c.dataset.i; c.checked ? ticked.add(i) : ticked.delete(i);
       c.closest(".todo").classList.toggle("done", c.checked); store.set(doneKey, JSON.stringify([...ticked]));
@@ -422,8 +469,8 @@ function renderTab() {
     el.innerHTML = `
       <div class="player"><audio id="aud" controls preload="metadata" src="/api/recordings/${meta.id}/audio"></audio></div>
       ${keys.length > 0 ? `<div class="spk"><span class="hint">Speakers:</span>${keys.map(k =>
-        `<span class="spkchip"><span class="sw" style="background:${speakerColour(k)}"></span><input data-k="${k}" value="${esc(sName(meta, k))}" aria-label="Rename ${esc(k)}"></span>`).join("")}
-        <span class="hint">Click a name to rename. Give two the same name to merge them.</span></div>` : ""}
+        `<span class="spkchip"><span class="sw" style="background:${speakerColour(k)}"></span><input data-k="${k}" value="${esc(sName(meta, k))}" aria-label="Rename ${esc(k)}">${(meta.recognised || []).includes(k) ? `<span class="known" title="Recognised from a voice Isma3 knows. Rename if it's wrong.">✓</span>` : ""}</span>`).join("")}
+        <span class="hint">Click a name to rename. Isma3 learns the voice. Give two the same name to merge them.</span></div>` : ""}
       <div class="spkfix"><span class="hint">Wrong number of speakers?</span>
         <select id="spkCount" aria-label="Number of speakers">${[1,2,3,4,5,6,7,8].map(n => `<option ${n === keys.length ? "selected" : ""}>${n}</option>`).join("")}<option value="">Work it out</option></select>
         <button class="btn" id="spkRedo">Redo speakers</button></div>
@@ -446,7 +493,7 @@ function renderTab() {
     el.querySelectorAll(".spkchip input").forEach(inp => {
       const save = async () => { const v = inp.value.trim(); if (!v || v === sName(meta, inp.dataset.k)) return;
         try { await api(`/api/recordings/${meta.id}`, { method: "PATCH", headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ speakers: { [inp.dataset.k]: v } }) }); await openRec(meta.id, true); } catch (e) { alert(e.message); } };
+          body: JSON.stringify({ speakers: { [inp.dataset.k]: v } }) }); loadVoices(); await openRec(meta.id, true); } catch (e) { alert(e.message); } };
       inp.onblur = save; inp.onkeydown = e => { if (e.key === "Enter") inp.blur(); };
     });
   } else if (tab === "mindmap") {
@@ -463,6 +510,17 @@ function renderTab() {
   }
 }
 let pendingSeek = null, tcOpen = false;
+const snip = new Audio(); let snipEnd = 0, snipBtn = null;
+snip.ontimeupdate = () => { if (snip.currentTime >= snipEnd) stopSnip(); };
+function stopSnip() { snip.pause(); if (snipBtn) snipBtn.textContent = "▶"; snipBtn = null; }
+function playSnippet(id, b, btn) {
+  if (snipBtn === btn) { stopSnip(); return; }
+  stopSnip(); const src = `/api/recordings/${id}/audio`;
+  if (!snip.src.endsWith(src)) snip.src = src;
+  snipEnd = b.end + 0.3; snipBtn = btn; btn.textContent = "■";
+  const go = () => { snip.currentTime = Math.max(0, b.start - 0.2); snip.play(); };
+  snip.readyState >= 1 ? go() : snip.addEventListener("loadedmetadata", go, { once: true });
+}
 
 async function editTitle() {
   const h = $("#titleH"); if (h.querySelector("input")) return;
@@ -525,6 +583,34 @@ $("#askAllBtn").onclick = () => {
   renderAsk($("#tabBody"), null, ["What did I promise to do this week?", "When did we last talk about the budget?", "Summarise my meetings with Sara"]);
 };
 
+/* ------------------------------------------------------------ live notes */
+let livePoll = null;
+function showLive() {
+  if (!rec?.live) return;
+  view = "live"; current = null; $("#askAllBtn").classList.remove("active"); renderList();
+  $("#view").innerHTML = `<div class="head"><h2>Live notes</h2></div>
+    <div class="sub"><span class="livedot"></span><span id="liveStatus">Listening…</span></div>
+    <div class="livegrid"><div class="card"><h3>Transcript so far (rough)</h3><div id="liveLines" class="livelines"><p class="hint">Words appear a few seconds after they're spoken.</p></div></div>
+      <div class="card"><h3>Notes so far</h3><div id="liveNotes"><p class="hint">Notes appear after the first few sentences.</p></div></div></div>
+    <p class="hint">When you stop, Isma3 makes the final transcript with speaker names and full notes.</p>`;
+  clearInterval(livePoll); livePoll = setInterval(pollLive, 2000); pollLive();
+}
+async function pollLive() {
+  const lv = rec?.live; if (!lv || view !== "live") { clearInterval(livePoll); return; }
+  let st; try { st = await api(`/api/live/${lv.id}`); } catch { return; }
+  if (view !== "live") return;
+  $("#liveStatus").textContent = st.error ? st.error : st.lag > 15 ? `Catching up (${Math.round(st.lag)}s behind)…` : "Listening…";
+  const box = $("#liveLines"), atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  if (st.lines.length) box.innerHTML = st.lines.map(l => `<div class="liveline"><span class="ts">${fmt(l.start)}</span><span>${esc(l.text)}</span></div>`).join("");
+  if (atBottom) box.scrollTop = box.scrollHeight;
+  const n = st.notes || {};
+  if (n.key_points) $("#liveNotes").innerHTML = `
+    ${n.topic_now ? `<p class="nowtopic"><span class="hint">Now:</span> ${esc(n.topic_now)}</p>` : ""}
+    ${n.key_points.length ? `<b class="lh">Key points</b><ul class="clean">${n.key_points.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${n.decisions?.length ? `<b class="lh">Decisions</b><ul class="clean">${n.decisions.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${n.action_items?.length ? `<b class="lh">Action items</b><ul class="clean">${n.action_items.map(a => `<li>${esc(a.task)}${a.owner ? ` <span class="hint">(${esc(a.owner)})</span>` : ""}</li>`).join("")}</ul>` : ""}`;
+}
+
 /* ------------------------------------------------------------ recording */
 let rec = null;
 const micSel = $("#micSel"), callSel = $("#callSel"), spkSel = $("#spkSel");
@@ -547,12 +633,14 @@ micSel.onchange = () => store.set("mic", micSel.value);
 callSel.onchange = () => { store.set("call", callSel.value); $("#callMeter").style.opacity = callSel.value ? 1 : .4; };
 spkSel.onchange = () => store.set("spk", spkSel.value);
 spkSel.value = store.get("spk") || "";
+$("#liveChk").checked = store.get("live") !== "off"; $("#liveChk").onchange = () => store.set("live", $("#liveChk").checked ? "on" : "off");
+$("#styleSel").value = store.get("style") || ""; $("#styleSel").onchange = () => store.set("style", $("#styleSel").value);
 $("#setBtn").onclick = async () => { const s = $("#settings"); s.classList.toggle("open"); if (s.classList.contains("open")) await loadDevices(true); };
 navigator.mediaDevices?.addEventListener?.("devicechange", () => loadDevices(false));
 
-function meterFor(ctx, src, barEl, dest) {
+function meterFor(ctx, src, barEl, dest, input = 0) {
   // the analyser sits in the signal path (it passes audio through unchanged) so the browser keeps it running
-  const an = ctx.createAnalyser(); an.fftSize = 2048; src.connect(an); an.connect(dest);
+  const an = ctx.createAnalyser(); an.fftSize = 2048; src.connect(an); an.connect(dest, 0, input);
   const buf = new Float32Array(an.fftSize); let level = 0;
   return () => { an.getFloatTimeDomainData(buf); let p = 0; for (const v of buf) p = Math.max(p, Math.abs(v));
     level = Math.max(p, level * 0.85); barEl.style.width = Math.min(100, Math.sqrt(level) * 130) + "%"; };
@@ -563,19 +651,46 @@ async function startRecording() {
   await loadDevices(true);
   const ctx = new AudioContext(); await ctx.resume();
   const dest = ctx.createMediaStreamDestination();
+  // with call audio on, record two channels: left = your mic, right = the call. Isma3 uses this to always label you correctly.
+  const split = !!callSel.value;
+  const merger = split ? ctx.createChannelMerger(2) : null;
+  if (merger) merger.connect(dest);
   const streams = [], meters = [], nodes = []; // nodes: keep references so the browser doesn't drop them
   const open = async id => navigator.mediaDevices.getUserMedia({ audio: {
     deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
   try {
     const mic = await open(micSel.value); streams.push(mic);
-    const ms = ctx.createMediaStreamSource(mic); nodes.push(ms); meters.push(meterFor(ctx, ms, $("#micLvl"), dest));
+    const ms = ctx.createMediaStreamSource(mic); nodes.push(ms); meters.push(meterFor(ctx, ms, $("#micLvl"), merger || dest, 0));
     if (callSel.value) {
       const call = await open(callSel.value); streams.push(call);
-      const cs = ctx.createMediaStreamSource(call); nodes.push(cs); meters.push(meterFor(ctx, cs, $("#callLvl"), dest));
+      const cs = ctx.createMediaStreamSource(call); nodes.push(cs); meters.push(meterFor(ctx, cs, $("#callLvl"), merger, 1));
     }
   } catch (e) {
     streams.forEach(s => s.getTracks().forEach(t => t.stop())); ctx.close();
     alert("Couldn't open the microphone: " + e.message + "\nCheck System Settings › Privacy & Security › Microphone."); return;
+  }
+  let live = null;
+  if ($("#liveChk").checked) {
+    try {
+      const st = await api("/api/live/start", { method: "POST" });
+      const mix = ctx.createGain(); mix.channelCount = 1; mix.channelCountMode = "explicit";
+      nodes.filter(n => n instanceof MediaStreamAudioSourceNode).forEach(n => n.connect(mix));
+      const proc = ctx.createScriptProcessor(4096, 1, 1);
+      mix.connect(proc); proc.connect(ctx.destination);  // output stays silent; this just taps the audio
+      live = { id: st.id, buf: [], sent: 0, mix, proc, timer: null, state: null };
+      const ratio = ctx.sampleRate / 16000;
+      proc.onaudioprocess = e => {
+        const x = e.inputBuffer.getChannelData(0), n = Math.floor(x.length / ratio), out = new Int16Array(n);
+        for (let i = 0; i < n; i++) { let s = 0, a = Math.floor(i * ratio), b = Math.floor((i + 1) * ratio);
+          for (let j = a; j < b; j++) s += x[j]; const v = s / Math.max(1, b - a); out[i] = Math.max(-1, Math.min(1, v)) * 32767; }
+        live.buf.push(out);
+      };
+      live.flush = async () => { if (!live.buf.length) return; const parts = live.buf; live.buf = [];
+        const len = parts.reduce((t, p) => t + p.length, 0), all = new Int16Array(len); let o = 0; parts.forEach(p => { all.set(p, o); o += p.length; });
+        try { await fetch(`/api/live/${live.id}/chunk`, { method: "POST", headers: {"Content-Type": "application/octet-stream"}, body: all.buffer }); } catch {} };
+      live.timer = setInterval(() => live.flush(), 3000);
+      nodes.push(mix, proc);
+    } catch (e) { live = null; }
   }
   const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find(t => MediaRecorder.isTypeSupported(t)) || "";
   const mr = new MediaRecorder(dest.stream, type ? { mimeType: type, audioBitsPerSecond: 96000 } : {});
@@ -583,14 +698,18 @@ async function startRecording() {
   mr.start(1000);
   const t0 = Date.now();
   const tick = setInterval(() => { $("#timer").textContent = fmt((Date.now() - t0) / 1000); meters.forEach(m => m()); }, 100);
-  rec = { ctx, mr, chunks, streams, tick, t0, meters, nodes, type: mr.mimeType || type, withCall: !!callSel.value };
+  if (merger) nodes.push(merger);
+  rec = { ctx, mr, chunks, streams, tick, t0, meters, nodes, split, live, type: mr.mimeType || type, withCall: !!callSel.value };
   $("#recBtn").classList.add("on"); $("#recBtn").setAttribute("aria-label", "Stop recording");
-  $("#recHint").textContent = rec.withCall ? "Recording you + call audio" : "Recording · tap to stop";
+  $("#recHint").innerHTML = (rec.withCall ? "Recording you + call audio" : "Recording · tap to stop") +
+    (live ? ` · <button class="linkbtn" id="showLive">Live notes</button>` : "");
+  if (live) { $("#showLive").onclick = showLive; showLive(); }
 }
 
 async function stopRecording() {
   const r = rec; rec = null;
   clearInterval(r.tick);
+  if (r.live) { clearInterval(r.live.timer); await r.live.flush(); fetch(`/api/live/${r.live.id}/stop`, { method: "POST" }).catch(() => {}); }
   await new Promise(res => { r.mr.onstop = res; r.mr.stop(); });
   r.streams.forEach(s => s.getTracks().forEach(t => t.stop())); r.ctx.close();
   $("#recBtn").classList.remove("on"); $("#recBtn").setAttribute("aria-label", "Start recording");
@@ -598,11 +717,13 @@ async function stopRecording() {
   $("#timer").textContent = "00:00"; $("#recHint").textContent = "Saving…";
   const blob = new Blob(r.chunks, { type: r.type || "audio/webm" });
   const ext = /mp4/.test(r.type) ? "m4a" : "webm";
-  await uploadBlob(blob, "recording." + ext, r.withCall ? "mic+call" : "mic");
+  await uploadBlob(blob, "recording." + ext, r.withCall ? "mic+call" : "mic", false, r.split);
 }
 
-async function uploadBlob(blob, name, source, batch) {
+async function uploadBlob(blob, name, source, batch, split) {
   const fd = new FormData(); fd.append("file", blob, name); fd.append("num_speakers", spkSel.value); fd.append("source", source);
+  if (split) fd.append("channels", "split");
+  fd.append("style", $("#styleSel").value);
   try { const m = await api("/api/recordings", { method: "POST", body: fd });
     if (!batch) $("#recHint").textContent = "Tap to record";
     await refresh(); if (!batch) { tab = "summary"; openRec(m.id); }
@@ -627,7 +748,7 @@ $("#fileIn").onchange = async e => {
 window.addEventListener("beforeunload", e => { if (rec) { e.preventDefault(); e.returnValue = ""; } });
 document.addEventListener("keydown", e => { if (e.key === " " && e.altKey) { e.preventDefault(); $("#recBtn").click(); } });
 
-showHome(); refresh(); loadHealth(); setInterval(loadHealth, 15000);
+showHome(); refresh(); loadHealth(); loadVoices().then(() => { if (view === "home") renderHome(); }); setInterval(loadHealth, 15000);
 </script>
 </body>
 </html>

@@ -62,11 +62,11 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
   <p>Get started</p>
   <a href="#install">Install</a><a href="#first">Your first recording</a><a href="#update">Updating</a>
   <p>Recording</p>
-  <a href="#record">Record in person</a><a href="#calls">Record calls</a><a href="#upload">Upload files</a>
+  <a href="#record">Record in person</a><a href="#live">Live notes</a><a href="#calls">Record calls</a><a href="#upload">Upload files</a>
   <p>Your notes</p>
-  <a href="#notes">Summary, actions and mind map</a><a href="#speakers">Fix speakers</a><a href="#ask">Ask Isma3</a><a href="#obsidian">Obsidian</a>
+  <a href="#notes">Summary, actions and mind map</a><a href="#speakers">Fix speakers</a><a href="#voices">Voices it remembers</a><a href="#ask">Ask Isma3</a><a href="#obsidian">Obsidian</a>
   <p>For production</p>
-  <a href="#timecode">Camera timecode</a><a href="#premiere">Premiere Pro</a>
+  <a href="#interview">Interview mode</a><a href="#timecode">Camera timecode</a><a href="#premiere">Premiere Pro</a>
   <p>Help</p>
   <a href="#settings">Settings</a><a href="#trouble">Troubleshooting</a><a href="#privacy">Privacy</a>
 </aside>
@@ -115,6 +115,15 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
 </div>
 <div class="note warn"><b>Always tell people you're recording.</b>Recording a private conversation without consent is illegal in many places, including South Australia.</div>
 
+<h2 id="live">Live notes</h2>
+<p>While you record, Isma3 shows a rough transcript a few seconds behind the speech. After the first few sentences, it adds rolling notes: what's being discussed now, key points, decisions and action items.</p>
+<figure><img src="img/g_live.jpg" alt="Live notes while recording"><figcaption>Live notes build as you talk.</figcaption></figure>
+<ul>
+  <li>Live notes open automatically when you press record. If you look at another recording, click <b>Live notes</b> under the timer to get back.</li>
+  <li>The live text has no speaker names and may have small errors. When you stop, Isma3 does its full pass and replaces it with the final transcript, speaker names and complete notes.</li>
+  <li>To turn live notes off, untick <b>Sources → Live notes while recording</b>. Your Mac works harder while they're on, so expect the fans on long calls.</li>
+</ul>
+
 <h2 id="calls">Record calls</h2>
 <p>Isma3 records your microphone (you) and <b>BlackHole</b> (everyone else, taken from your Mac's sound output) together. No bot joins the call.</p>
 <h3>One-time setup (2 minutes)</h3>
@@ -131,6 +140,7 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
   <li>Press record. Both bars should move: <b>Mic</b> when you talk and <b>Call audio</b> when they do.</li>
   <li>After the call, switch your output back to normal so the volume keys work again.</li>
 </ol>
+<div class="note"><b>You're always labelled correctly on calls.</b>With Call audio on, Isma3 records your mic and the call as two separate channels. Anything said into your mic is labelled with your name (from the installer) or "Me". Only the other people on the call need sorting out.</div>
 <table>
   <tr><th>App</th><th>Setting</th></tr>
   <tr><td><b>Zoom</b></td><td>Settings → Audio → Speaker: <i>Same as System</i></td></tr>
@@ -169,6 +179,18 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
   <li><b>Best fix:</b> set <b>Sources → Number of speakers</b> <i>before</i> recording.</li>
 </ul>
 
+<h2 id="voices">Voices it remembers</h2>
+<p>When you name someone in a transcript, Isma3 saves a voiceprint for them. In future recordings it labels them automatically. A <span style="color:#34c759;font-weight:700">✓</span> next to a name shows it was recognised.</p>
+<figure><img src="img/g_known.jpg" alt="Recognised speakers with ticks"><figcaption>Recognised speakers are ticked. If one's wrong, rename it and Isma3 learns from the correction.</figcaption></figure>
+<ul>
+  <li>Isma3 only fills in a name when the match is clear. If it isn't sure, you'll see "Speaker 2" rather than a wrong name.</li>
+  <li>The more recordings someone is named in, the better Isma3 recognises them. It keeps up to 12 samples per person.</li>
+  <li>Your own voice is learnt automatically from call recordings, so you're recognised in person too.</li>
+  <li>To see or remove voices, use <b>Voices Isma3 knows</b> on the home screen and press <b>Forget</b>.</li>
+</ul>
+<figure><img src="img/g_voices.jpg" alt="Voices Isma3 knows"><figcaption>Manage known voices on the home screen.</figcaption></figure>
+<div class="note"><b>Voiceprints are personal data.</b>They stay on your Mac in <code>~/Isma3/data/voices.json</code> and are never uploaded. Tell colleagues if you're keeping theirs, and forget anyone who asks. To switch the feature off, set <code>"remember_voices": false</code> in config.json.</div>
+
 <h2 id="ask">Ask Isma3</h2>
 <p><b>Ask Isma3</b> in the sidebar searches every recording. Try questions like:</p>
 <ul>
@@ -181,6 +203,16 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
 <h2 id="obsidian">Obsidian</h2>
 <p>If you gave the installer an Obsidian vault, each recording also becomes a note in an <code>Isma3</code> folder in your vault. The note has the summary, tick-box action items, a mind-map outline and the full transcript. Renaming speakers updates the note.</p>
 <p>To turn this on later, edit <code>~/Isma3/config.json</code> (see <a href="#settings">Settings</a>).</p>
+
+<h2 id="interview">Interview mode</h2>
+<p>For interviews and shoots, Isma3 acts like a producer logging the rushes. Besides the usual summary, it picks the <b>best soundbites</b>: clear, quotable lines that work without the question.</p>
+<figure><img src="img/g_soundbites.jpg" alt="Soundbites with camera timecode"><figcaption>Each soundbite has exact in and out timecodes, a star rating and a theme, plus a play button to hear it.</figcaption></figure>
+<ul>
+  <li><b>Camera clips switch to interview mode automatically.</b> To choose for everything else, use <b>Sources → Notes style</b>.</li>
+  <li><b>To change a recording,</b> pick <b>Notes style</b> at the top of its Summary tab. Isma3 rewrites the notes.</li>
+  <li><b>In and out points come from word timings,</b> so each soundbite starts and ends on the quote, not the whole answer.</li>
+  <li><b>Export → Soundbites with timecode (.csv)</b> gives you a ready-made selects list: stars, TC in and out, speaker, quote, theme and why it works.</li>
+</ul>
 
 <h2 id="timecode">Camera timecode</h2>
 <p>When you upload a camera clip, Isma3 reads the clip's timecode and frame rate. Every transcript line then shows <b>camera timecode</b>, so you can find any line in the footage.</p>
@@ -204,6 +236,7 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
   <tr><th>Export</th><th>Use it for</th></tr>
   <tr><td><b>Captions for Premiere (.srt)</b></td><td>Captions with speaker names, split into caption-sized lines.</td></tr>
   <tr><td><b>Select list with timecode (.csv)</b></td><td>Every line with TC in, TC out, speaker and text. It opens in Excel, Numbers or Google Sheets, so you can highlight selects and build a paper edit.</td></tr>
+  <tr><td><b>Soundbites with timecode (.csv)</b></td><td>Interview mode's picks, strongest first by stars, with TC in and out. Use it as your selects list.</td></tr>
   <tr><td><b>Timecoded transcript (.txt)</b></td><td>The summary, action items and the full transcript stamped with camera timecode, ready to send to an editor or client.</td></tr>
 </table>
 <h3>Import the captions into Premiere</h3>
@@ -223,6 +256,9 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
   <tr><td><code>obsidian_folder</code></td><td>The folder inside the vault. Default: <code>Isma3</code>.</td></tr>
   <tr><td><code>language</code></td><td><code>null</code> detects the language automatically, or set one, e.g. <code>"en"</code> or <code>"ar"</code>.</td></tr>
   <tr><td><code>llm_model</code></td><td>The model behind summaries and Ask. <code>qwen3:14b</code> is the default. <code>qwen3:8b</code> is faster on 16&nbsp;GB Macs. Run <code>ollama pull &lt;name&gt;</code> first.</td></tr>
+  <tr><td><code>live_llm_model</code></td><td>The faster model behind live notes. <code>qwen3:8b</code> is the default. If it isn't downloaded, the main model is used.</td></tr>
+  <tr><td><code>remember_voices</code></td><td><code>true</code> or <code>false</code>: turns voice memory on or off.</td></tr>
+  <tr><td><code>voice_match_threshold</code></td><td>How sure Isma3 must be before naming someone automatically. Default <code>0.55</code>. Raise it if it guesses wrong.</td></tr>
   <tr><td><code>speaker_threshold</code></td><td>Raise it (e.g. <code>1.0</code>) if one person keeps being split in two, and lower it (e.g. <code>0.8</code>) if different people are merged.</td></tr>
 </table>
 
@@ -236,6 +272,8 @@ footer{border-top:1px solid var(--line);padding:30px 22px;font-size:12px;color:v
   <tr><td>Voices appear twice</td><td>Wear headphones on calls.</td></tr>
   <tr><td>The wrong number of speakers</td><td>See <a href="#speakers">Fix speakers</a>.</td></tr>
   <tr><td>macOS says it can't verify Isma3</td><td>Right-click Isma3 in Applications, choose <b>Open</b>, then <b>Open</b> again. You only need to do this once.</td></tr>
+  <tr><td>Live notes say "Catching up"</td><td>Your Mac is busy, often finishing an earlier recording. It catches up on its own, and the final notes are unaffected.</td></tr>
+  <tr><td>Someone was recognised as the wrong person</td><td>Rename them. Isma3 moves that voice sample to the right person.</td></tr>
   <tr><td>Something failed mid-way</td><td>Press <b>Retry</b>. The audio is always kept.</td></tr>
 </table>
 

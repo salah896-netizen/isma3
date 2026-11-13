@@ -37,12 +37,15 @@ DEFAULT_CONFIG = {
     "language": None,
     "llm_model": "qwen3:14b",
     "embed_model": "nomic-embed-text",
+    "live_llm_model": "qwen3:8b",
     "ollama_url": "http://127.0.0.1:11434",
     "speaker_threshold": 0.9,
+    "remember_voices": True,
+    "voice_match_threshold": 0.55,
     "port": 8765,
 }
 
-VERSION = "1.4"  # bump with every update; the page compares it to spot a stale engine
+VERSION = "1.7"  # bump with every update; the page compares it to spot a stale engine
 
 STAGES = {
     "queued": "Waiting",
@@ -112,7 +115,7 @@ def list_recordings() -> list[dict]:
 
 
 def create_recording(src, filename: str, title: str | None, num_speakers: int | None,
-                     source: str) -> dict:
+                     source: str, split_channels: bool = False, style: str = "") -> dict:
     """src is a file object (streamed to disk, so multi-GB camera files are fine) or bytes."""
     rec_id = uuid.uuid4().hex[:12]
     d = REC_DIR / rec_id
@@ -138,6 +141,9 @@ def create_recording(src, filename: str, title: str | None, num_speakers: int | 
         "source_name": Path(filename).name if source == "upload" else None,
         "recorded_at": now.isoformat(timespec="seconds"),
         "tc_start": None, "fps": None, "tc_from": None,
+        "split_channels": bool(split_channels),
+        "style": style if style in ("meeting", "interview") else "meeting",
+        "style_auto": style not in ("meeting", "interview"),
         "created": now.isoformat(timespec="seconds"),
         "original": f"original{ext}",
         "source": source,
@@ -268,6 +274,8 @@ def prepare_camera_file(rec_id: str) -> dict:
     changes = {}
     if info["has_video"] or info["tc_start"]:
         changes["title_locked"] = True  # camera clips keep their clip name (A001_C003…), which editors rely on
+        if meta.get("style_auto"):
+            changes["style"] = "interview"  # footage from a shoot: pull soundbites by default
     if info["tc_start"] and not meta.get("tc_start"):
         changes.update(tc_start=info["tc_start"], fps=info["fps"], tc_from=info["tc_from"])
     elif info["fps"] and not meta.get("fps"):
@@ -353,11 +361,31 @@ def export_txt(rec_id: str) -> str:
         lines += ["", "SUMMARY", notes["summary"]]
     if notes.get("action_items"):
         lines += ["", "ACTION ITEMS"] + [f"- {a['task']}" + (f" ({a['owner']})" if a.get("owner") else "") for a in notes["action_items"]]
+    if notes.get("soundbites"):
+        lines += ["", "SOUNDBITES"]
+        for sb in notes["soundbites"]:
+            stamp = f"{tc_at(meta, sb['start']) or fmt_ts(sb['start'])} - {tc_at(meta, sb['end']) or fmt_ts(sb['end'])}"
+            lines += [f"[{stamp}] {'★' * sb['strength']} {speaker_name(meta, sb['speaker'])} ({sb['theme']})", f"  \"{sb['quote']}\""]
     lines += ["", "TRANSCRIPT", ""]
     for u in utts:
         stamp = tc_at(meta, u["start"]) or fmt_ts(u["start"])
         lines += [f"[{stamp}] {speaker_name(meta, u['speaker'])}", u["text"], ""]
     return "\n".join(lines)
+
+
+def export_soundbites_csv(rec_id: str) -> str:
+    import csv
+    import io
+    meta = get_meta(rec_id)
+    notes = read_json(rec_path(rec_id) / "notes.json", {}) or {}
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Strength", "TC In", "TC Out", "Speaker", "Quote", "Theme", "Why", "Clip time in", "Clip time out", "Source file"])
+    for sb in notes.get("soundbites", []):
+        w.writerow(["★" * sb["strength"], tc_at(meta, sb["start"]) or "", tc_at(meta, sb["end"]) or "",
+                    speaker_name(meta, sb["speaker"]), sb["quote"], sb["theme"], sb["why"],
+                    fmt_ts(sb["start"]), fmt_ts(sb["end"]), meta.get("source_name") or ""])
+    return "\ufeff" + buf.getvalue()
 
 
 def export_csv(rec_id: str) -> str:
@@ -400,6 +428,30 @@ def convert_audio(d: Path, original: str) -> tuple[Path, float]:
     return wav, duration
 
 
+def split_channels(d: Path, original: str) -> tuple[np.ndarray, np.ndarray]:
+    """For call recordings made with separate channels: left = your mic, right = the call."""
+    left, right = d / "mic16k.wav", d / "call16k.wav"
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-i", str(d / original), "-filter_complex",
+         "[0:a]channelsplit=channel_layout=stereo[L][R]", "-map", "[L]", "-ar", "16000", "-c:a", "pcm_s16le", str(left),
+         "-map", "[R]", "-ar", "16000", "-c:a", "pcm_s16le", str(right)],
+        check=True,
+    )
+    return load_wav(left), load_wav(right)
+
+
+def me_detector(mic: np.ndarray, call: np.ndarray, rate: int = 16000, ratio: float = 2.0):
+    """Returns is_me(start, end): True when the mic channel is clearly louder than the call channel."""
+    def rms(x):
+        return float(np.sqrt(np.mean(np.square(x)))) if len(x) else 0.0
+
+    def is_me(start, end):
+        a, b = int(max(start - 0.05, 0) * rate), int((end + 0.05) * rate)
+        m, c = rms(mic[a:b]), rms(call[a:b])
+        return m > 0.003 and m > ratio * c
+    return is_me
+
+
 def load_wav(wav: Path) -> np.ndarray:
     with wave.open(str(wav)) as w:
         raw = w.readframes(w.getnframes())
@@ -408,17 +460,21 @@ def load_wav(wav: Path) -> np.ndarray:
 
 # ---------------------------------------------------------------- stage 2: transcription
 
+WHISPER_LOCK = threading.Lock()
+
+
 def transcribe(wav: Path, cfg: dict) -> list[dict]:
     """Returns whisper segments: [{start, end, text, words:[{word,start,end}]}]."""
     import mlx_whisper  # Apple Silicon only
 
-    result = mlx_whisper.transcribe(
-        str(wav),
-        path_or_hf_repo=cfg["whisper_model"],
-        language=cfg.get("language"),
-        word_timestamps=True,
-        condition_on_previous_text=False,
-    )
+    with WHISPER_LOCK:  # shared with live notes, so the two never run the model at the same time
+        result = mlx_whisper.transcribe(
+            str(wav),
+            path_or_hf_repo=cfg["whisper_model"],
+            language=cfg.get("language"),
+            word_timestamps=True,
+            condition_on_previous_text=False,
+        )
     segs = []
     for s in result.get("segments", []):
         text = (s.get("text") or "").strip()
@@ -473,16 +529,20 @@ def _speaker_at(t0: float, t1: float, turns) -> int | None:
     return nearest[2] if nearest else None
 
 
-def build_utterances(segments: list[dict], turns) -> list[dict]:
-    """Assign each word to a speaker, then group runs of words into utterances."""
+def build_utterances(segments: list[dict], turns, is_me=None) -> list[dict]:
+    """Assign each word to a speaker, then group runs of words into utterances.
+    is_me(start, end) -> bool marks words spoken into your own mic (split-channel call recordings): they become S1."""
     units = []  # (start, end, text, raw_speaker, segment_index)
     for i, seg in enumerate(segments):
         words = seg["words"] or [{"word": seg["text"], "start": seg["start"], "end": seg["end"]}]
         for w in words:
-            spk = _speaker_at(w["start"], w["end"], turns) if turns else 0
+            if is_me and is_me(w["start"], w["end"]):
+                spk = "ME"
+            else:
+                spk = _speaker_at(w["start"], w["end"], turns) if turns else 0
             units.append((w["start"], w["end"], w["word"], spk if spk is not None else 0, i))
 
-    order: dict[int, str] = {}  # raw diarisation id -> S1, S2... in order of first appearance
+    order: dict = {"ME": "S1"} if is_me else {}  # raw id -> S1, S2... in order of first appearance
     utterances: list[dict] = []
     for start, end, word, raw, seg_i in units:
         key = order.setdefault(raw, f"S{len(order) + 1}")
@@ -499,6 +559,99 @@ def build_utterances(segments: list[dict], turns) -> list[dict]:
         u.pop("_seg")
         u["text"] = re.sub(r"\s+", " ", u["text"]).strip()
     return [u for u in utterances if u["text"]]
+
+
+# ---------------------------------------------------------------- voices Isma3 remembers
+
+VOICES_PATH = DATA_DIR / "voices.json"
+_voices_lock = threading.Lock()
+DEFAULT_NAME = re.compile(r"^(speaker \d+|me)$", re.I)
+
+
+def _extractor():
+    global _EXTRACTOR
+    try:
+        return _EXTRACTOR
+    except NameError:
+        import sherpa_onnx as so
+        _EXTRACTOR = so.SpeakerEmbeddingExtractor(so.SpeakerEmbeddingExtractorConfig(model=str(EMB_MODEL)))
+        return _EXTRACTOR
+
+
+def speaker_voices(samples_for, utterances: list[dict], max_secs: float = 45.0, min_secs: float = 3.0) -> dict:
+    """One voiceprint per speaker. samples_for(key) gives the audio to use for that speaker."""
+    if not EMB_MODEL.exists():
+        return {}
+    ex, out = _extractor(), {}
+    for key in sorted({u["speaker"] for u in utterances}):
+        x, total = [], 0.0
+        audio = samples_for(key)
+        for u in sorted((u for u in utterances if u["speaker"] == key), key=lambda u: u["start"] - u["end"]):
+            if total >= max_secs:
+                break
+            x.append(audio[int(u["start"] * 16000):int(u["end"] * 16000)])
+            total += u["end"] - u["start"]
+        if total < min_secs:
+            continue
+        st = ex.create_stream()
+        st.accept_waveform(16000, np.concatenate(x))
+        st.input_finished()
+        v = np.array(ex.compute(st), dtype=np.float32)
+        out[key] = (v / max(np.linalg.norm(v), 1e-8)).tolist()
+    return out
+
+
+def load_voices() -> dict:
+    return read_json(VOICES_PATH, {}) or {}
+
+
+def remember_voice(name: str, rec_id: str, key: str) -> bool:
+    """Save this speaker's voiceprint under `name` (replacing any earlier sample from the same speaker slot)."""
+    vec = (read_json(rec_path(rec_id) / "speaker_voices.json", {}) or {}).get(key)
+    if not vec or DEFAULT_NAME.match(name.strip()):
+        return False
+    with _voices_lock:
+        lib = load_voices()
+        for entry in lib.values():
+            entry["samples"] = [x for x in entry["samples"] if not (x["rec"] == rec_id and x["key"] == key)]
+        lib = {k: v for k, v in lib.items() if v["samples"]}
+        entry = lib.setdefault(name.strip(), {"samples": []})
+        entry["samples"] = (entry["samples"] + [{"rec": rec_id, "key": key, "vec": vec}])[-12:]
+        entry["updated"] = datetime.now().isoformat(timespec="seconds")
+        write_json(VOICES_PATH, lib)
+    return True
+
+
+def forget_voice(name: str) -> bool:
+    with _voices_lock:
+        lib = load_voices()
+        if name not in lib:
+            return False
+        del lib[name]
+        write_json(VOICES_PATH, lib)
+    return True
+
+
+def recognise(voices: dict, threshold: float, exclude: set = frozenset()) -> dict:
+    """Match this recording's voiceprints against known voices. Returns {key: name} for clear matches only."""
+    lib = load_voices()
+    cands = []
+    for key, vec in voices.items():
+        v = np.array(vec)
+        scores = sorted(((max(float(v @ np.array(s["vec"])) for s in e["samples"]), name)
+                         for name, e in lib.items() if e["samples"] and name not in exclude), reverse=True)
+        if not scores:
+            continue
+        best, name = scores[0]
+        runner_up = scores[1][0] if len(scores) > 1 else -1.0
+        if best >= threshold and best - runner_up >= 0.05:
+            cands.append((best, key, name))
+    out, used = {}, set()
+    for score, key, name in sorted(cands, reverse=True):  # strongest matches first; one name per speaker
+        if key not in out and name not in used:
+            out[key] = name
+            used.add(name)
+    return out
 
 
 # ---------------------------------------------------------------- stage 4: notes (Ollama)
@@ -624,6 +777,91 @@ def make_notes(cfg: dict, meta: dict, utterances: list[dict]) -> dict:
     return notes
 
 
+# ---------------------------------------------------------------- interview mode: soundbites
+
+SOUNDBITE_SCHEMA = {
+    "type": "object",
+    "properties": {"soundbites": {"type": "array", "items": {"type": "object", "properties": {
+        "line_start": {"type": "integer"}, "line_end": {"type": "integer"},
+        "quote": {"type": "string"}, "theme": {"type": "string"},
+        "why": {"type": "string"}, "strength": {"type": "integer"}},
+        "required": ["line_start", "line_end", "quote", "theme", "why", "strength"]}}},
+    "required": ["soundbites"],
+}
+
+SOUNDBITE_INSTRUCTIONS = """You are a documentary producer picking soundbites from an interview transcript for the edit.
+Choose the strongest moments: clear, emotional, surprising or quotable lines that work on their own without the question.
+Prefer the interviewee over the interviewer. Each soundbite should be roughly 5-30 seconds of speech.
+- line_start / line_end: the [L#] numbers the soundbite spans (can be the same line).
+- quote: copy the words EXACTLY as written in the transcript, trimmed to the usable part (drop "um", false starts at the edges).
+- theme: 1-3 words grouping it (e.g. "Origin story", "Challenges").
+- why: one short sentence on why it works.
+- strength: 1-5 (5 = must use).
+Pick up to {n} soundbites from this part. Return none if nothing is usable.
+
+Transcript:
+"""
+
+
+def _norm(word: str) -> str:
+    return re.sub(r"[^\w']", "", word.lower())
+
+
+def locate_quote(quote: str, words: list[tuple], t0: float, t1: float) -> tuple[float, float] | None:
+    """Find the quote's exact in/out points using word timings between t0 and t1."""
+    qt = [w for w in (_norm(x) for x in quote.split()) if w]
+    win = [w for w in words if w[0] >= t0 - 1.0 and w[1] <= t1 + 1.0 and _norm(w[2])]
+    if len(qt) < 2 or not win:
+        return None
+    toks = [_norm(w[2]) for w in win]
+    head, tail = qt[:3], qt[-3:]
+    starts = [i for i in range(len(toks) - len(head) + 1) if toks[i:i + len(head)] == head]
+    for i in starts:
+        for j in range(len(toks) - len(tail), i - 1, -1):
+            if toks[j:j + len(tail)] == tail:
+                return win[i][0], win[j + len(tail) - 1][1]
+    return None
+
+
+def find_soundbites(cfg: dict, meta: dict, utterances: list[dict], segments: list[dict]) -> list[dict]:
+    lines = [f"[L{i}] {speaker_name(meta, u['speaker'])}: {u['text']}" for i, u in enumerate(utterances)]
+    parts, cur = [], []
+    for ln in lines:
+        if cur and sum(len(x) for x in cur) + len(ln) > CHUNK_CHARS:
+            parts.append(cur)
+            cur = []
+        cur.append(ln)
+    if cur:
+        parts.append(cur)
+    words = [(w["start"], w["end"], w["word"]) for seg in segments for w in (seg.get("words") or [])]
+    per_part = max(6, 15 // max(len(parts), 1))
+    found = []
+    for part in parts:
+        raw = ollama_chat(cfg, [
+            {"role": "system", "content": NOTES_SYSTEM},
+            {"role": "user", "content": SOUNDBITE_INSTRUCTIONS.replace("{n}", str(per_part)) + "\n".join(part)},
+        ], schema=SOUNDBITE_SCHEMA)
+        for sb in json.loads(raw).get("soundbites", []):
+            a, b = int(sb.get("line_start", -1)), int(sb.get("line_end", -1))
+            if not (0 <= a < len(utterances)):
+                continue
+            b = min(max(b, a), len(utterances) - 1, a + 6)
+            u0, u1 = utterances[a], utterances[b]
+            quote = re.sub(r"\s+", " ", sb.get("quote", "")).strip()
+            if not quote:
+                continue
+            span = locate_quote(quote, words, u0["start"], u1["end"]) or (u0["start"], u1["end"])
+            found.append({"start": round(span[0], 2), "end": round(span[1], 2), "speaker": u0["speaker"],
+                          "quote": quote, "theme": (sb.get("theme") or "").strip(), "why": (sb.get("why") or "").strip(),
+                          "strength": max(1, min(5, int(sb.get("strength") or 3)))})
+    found.sort(key=lambda x: (-x["strength"], x["start"]))
+    keep: list[dict] = []
+    for sb in found:  # drop overlaps, keep the strongest
+        if all(sb["end"] <= k["start"] or sb["start"] >= k["end"] for k in keep):
+            keep.append(sb)
+    return sorted(keep[:20], key=lambda x: x["start"])
+
+
 # ---------------------------------------------------------------- stage 5: search index
 
 def build_chunks(meta: dict, utterances: list[dict], max_chars: int = 900) -> list[dict]:
@@ -685,6 +923,11 @@ def obsidian_markdown(meta: dict, utterances: list[dict], notes: dict) -> str:
             extra = " — ".join(x for x in (a.get("owner"), f"due {a['due']}" if a.get("due") else "") if x)
             out.append(f"- [ ] {a['task']}" + (f" ({extra})" if extra else ""))
         out.append("")
+    if notes.get("soundbites"):
+        out.append("## Soundbites")
+        for sb in notes["soundbites"]:
+            stamp = f"{tc_at(meta, sb['start']) or fmt_ts(sb['start'])}–{tc_at(meta, sb['end']) or fmt_ts(sb['end'])}"
+            out.append(f"> \"{sb['quote']}\"\n> — {speaker_name(meta, sb['speaker'])} `{stamp}` {'★' * sb['strength']} *{sb['theme']}*\n")
     if notes.get("topics"):
         out += ["## Mind map", f"- **{meta['title']}**"]
         for t in notes["topics"]:
@@ -780,10 +1023,38 @@ def process(rec_id: str, mode: str = "full") -> None:
 
             update_meta(rec_id, stage="speakers")
             meta = get_meta(rec_id)
-            turns = diarize(load_wav(wav), cfg, meta.get("num_speakers")) if segments else []
-            utterances = build_utterances(segments, turns)
+            n = meta.get("num_speakers")
+            if meta.get("split_channels") and segments:
+                mic, call = split_channels(d, meta["original"])
+                others = (n - 1) if n and n > 1 else None
+                turns = diarize(call, cfg, others)
+                utterances = build_utterances(segments, turns, is_me=me_detector(mic, call))
+            else:
+                turns = diarize(load_wav(wav), cfg, n) if segments else []
+                utterances = build_utterances(segments, turns)
             old = dict(meta.get("speakers") or {}) if mode == "full" else {}
             speakers = {u["speaker"]: old.get(u["speaker"], u["speaker"].replace("S", "Speaker ")) for u in utterances}
+            if meta.get("split_channels") and "S1" in speakers and speakers["S1"] == "Speaker 1":
+                speakers["S1"] = (cfg.get("name") or "").strip() or "Me"
+            recognised = []
+            if cfg.get("remember_voices", True) and utterances:
+                try:
+                    if meta.get("split_channels"):
+                        voices = speaker_voices(lambda k: mic if k == "S1" else call, utterances)
+                    else:
+                        mono = load_wav(wav)
+                        voices = speaker_voices(lambda k: mono, utterances)
+                    write_json(d / "speaker_voices.json", voices)
+                    if meta.get("split_channels") and not DEFAULT_NAME.match(speakers.get("S1", "Me")):
+                        remember_voice(speakers["S1"], rec_id, "S1")  # your own mic: always you, so learn it
+                    pending = {k: v for k, v in voices.items() if DEFAULT_NAME.match(speakers.get(k, ""))}
+                    taken = {n for n in speakers.values() if not DEFAULT_NAME.match(n)}
+                    for key, name in recognise(pending, float(cfg.get("voice_match_threshold", 0.55)), taken).items():
+                        speakers[key] = name
+                        recognised.append(key)
+                except Exception:
+                    traceback.print_exc()  # voice memory is a bonus; never fail the recording over it
+            update_meta(rec_id, recognised=recognised)
             meta = update_meta(rec_id, speakers=speakers)
             write_json(d / "transcript.json", utterances)
         else:
@@ -791,7 +1062,10 @@ def process(rec_id: str, mode: str = "full") -> None:
             utterances = read_json(d / "transcript.json", [])
 
         update_meta(rec_id, stage="notes")
+        meta = get_meta(rec_id)
         notes = make_notes(cfg, meta, utterances)
+        if meta.get("style") == "interview" and utterances:
+            notes["soundbites"] = find_soundbites(cfg, meta, utterances, read_json(d / "segments.json", []))
         write_json(d / "notes.json", notes)
         if not meta.get("title_locked") and notes.get("title"):
             meta = update_meta(rec_id, title=notes["title"].strip())

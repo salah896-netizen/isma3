@@ -42,7 +42,7 @@ DEFAULT_CONFIG = {
     "port": 8765,
 }
 
-VERSION = "1.2"  # bump with every update; the page compares it to spot a stale engine
+VERSION = "1.3"  # bump with every update; the page compares it to spot a stale engine
 
 STAGES = {
     "queued": "Waiting",
@@ -169,6 +169,12 @@ def convert_audio(d: Path, original: str) -> tuple[Path, float]:
         ["ffmpeg", "-y", "-loglevel", "error", "-i", str(d / original),
          "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)],
         check=True,
+    )
+    # a seekable copy for the in-app player (browser recordings have no length in their header)
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-i", str(d / original), "-vn", "-c:a", "aac", "-b:a", "96k",
+         "-movflags", "+faststart", str(d / "playback.m4a")],
+        check=False,
     )
     with wave.open(str(wav)) as w:
         duration = w.getnframes() / w.getframerate()

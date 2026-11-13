@@ -67,7 +67,18 @@ def recording(rec_id: str):
 @app.get("/api/recordings/{rec_id}/audio")
 def audio(rec_id: str):
     meta = _meta_or_404(rec_id)
-    return FileResponse(P.rec_path(rec_id) / meta["original"])
+    d = P.rec_path(rec_id)
+    if (d / "playback.m4a").exists():
+        return FileResponse(d / "playback.m4a", media_type="audio/mp4")
+    if meta["original"].endswith(".webm") and (d / "audio16k.wav").exists():
+        return FileResponse(d / "audio16k.wav", media_type="audio/wav")  # older recordings: seekable fallback
+    return FileResponse(d / meta["original"])
+
+
+@app.get("/api/recordings/{rec_id}/original")
+def original(rec_id: str):
+    meta = _meta_or_404(rec_id)
+    return FileResponse(P.rec_path(rec_id) / meta["original"], filename=f"{meta['title'][:60]}{Path(meta['original']).suffix}")
 
 
 class Patch(BaseModel):

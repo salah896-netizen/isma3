@@ -10,7 +10,7 @@ unzip -q "$TMP/isma3.zip" -d "$TMP"
 mkdir -p "$DEST"
 # copy the app, but never touch your settings, recordings, models or Python environment
 rsync -a --exclude docs --exclude config.json --exclude data --exclude models --exclude .venv "$TMP/isma3-main/" "$DEST/"
-chmod +x "$DEST"/*.command "$DEST"/*.sh
+chmod +x "$DEST"/*.command "$DEST"/*.sh "$DEST"/assets/*.sh
 rm -rf "$TMP"
 echo "Isma3 is in $DEST. Opening the installer..."
 open "$DEST/install.command"

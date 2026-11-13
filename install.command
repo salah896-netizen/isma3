@@ -45,6 +45,9 @@ curl -s http://127.0.0.1:11434/api/tags >/dev/null || { open -a Ollama; sleep 8;
 "$OLLAMA" pull qwen3:14b
 "$OLLAMA" pull nomic-embed-text
 
+echo "== Adding Isma3 to your Applications folder =="
+./make_app.sh
+
 echo
-echo "All done. Start Isma3 any time by double-clicking start.command."
+echo "All done. Open Isma3 from Spotlight (⌘ Space, type Isma3) or ~/Applications, and drag it to your Dock."
 read -p "Press Return to close."

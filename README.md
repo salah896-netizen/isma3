@@ -30,7 +30,7 @@ You need a Mac with Apple Silicon (M1 or newer), 16 GB of memory and about 15 GB
    - **Ollama**, plus the AI models
 
    It asks for your name, an optional Obsidian vault and your Mac password.
-3. When it says **All done**, double-click **`start.command`** in `~/Isma3`. Isma3 opens in your browser.
+3. When it says **All done**, open **Isma3** from Spotlight (⌘ Space, then type "Isma3"). Drag it to your Dock to keep it there. It opens in its own window.
 
 To update, run the same Terminal line again. Your recordings, settings and models are kept.
 

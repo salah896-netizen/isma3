@@ -22,7 +22,14 @@ fi
 if ! curl -s "$URL/api/health" >/dev/null; then
   curl -s http://127.0.0.1:11434/api/tags >/dev/null || { open -ga Ollama; sleep 4; }
   mkdir -p data
-  nohup .venv/bin/python app.py >> data/isma3.log 2>&1 &
+  # start the engine in its own session, so it keeps running after this launcher closes
+  # (macOS shuts down everything an app started when the app quits)
+  .venv/bin/python - <<'PY'
+import os, subprocess
+log = open("data/isma3.log", "ab")
+subprocess.Popen([".venv/bin/python", "app.py"], stdout=log, stderr=log, stdin=subprocess.DEVNULL,
+                 start_new_session=True, close_fds=True, env=os.environ)
+PY
   for i in $(seq 1 40); do curl -s "$URL/api/health" >/dev/null && break; sleep 0.5; done
 fi
 if [ -d "/Applications/Google Chrome.app" ]; then

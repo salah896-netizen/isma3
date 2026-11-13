@@ -37,6 +37,22 @@ def health():
     return P.health()
 
 
+@app.post("/api/restart")
+def restart():
+    """Restart the engine in place (picks up updates), however it was started."""
+    import os
+    import sys
+    import threading
+
+    def go():
+        import time
+        time.sleep(0.6)
+        os.chdir(P.APP_DIR)
+        os.execv(sys.executable, [sys.executable, str(P.APP_DIR / "app.py")])
+    threading.Thread(target=go, daemon=True).start()
+    return {"ok": True}
+
+
 @app.get("/api/recordings")
 def recordings():
     return P.list_recordings()

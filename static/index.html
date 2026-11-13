@@ -231,7 +231,7 @@ aside{margin:8px;height:calc(100vh - 16px);border-radius:18px;background:rgba(24
 <aside>
   <div class="brand"><span class="dot" id="healthDot" title="System status"></span><h1>Isma3</h1><span class="offline">On this Mac</span></div>
 
-  <div id="updateNote" class="banner" style="display:none;margin:4px 16px 0">Isma3 has been updated. Close this window and open Isma3 again to finish.</div>
+  <div id="updateNote" class="banner" style="display:none;margin:4px 16px 0">Isma3 has been updated. <button class="linkbtn" id="restartBtn">Restart now</button> to finish.<span id="restartHelp" class="hint" style="display:none"><br>If that doesn't work, close any Terminal window running Isma3, then open Isma3 again.</span></div>
   <div class="recorder">
     <button class="recbtn" id="recBtn" aria-label="Start recording"><span class="inner"></span></button>
     <div class="timer" id="timer">00:00</div>
@@ -269,7 +269,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = s => { s = Math.floor(s || 0); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
   return (h ? h + ":" + String(m).padStart(2,"0") : String(m).padStart(2,"0")) + ":" + String(x).padStart(2,"0"); };
-const APP_VERSION = "1.7";
+const APP_VERSION = "1.8";
 const STAGES = ["queued","converting","transcribing","speakers","notes","indexing","exporting","done"];
 const LABEL = {queued:"Waiting",converting:"Preparing audio",transcribing:"Transcribing",speakers:"Identifying speakers",
   notes:"Writing summary",indexing:"Indexing for Ask",exporting:"Saving to Obsidian",done:"Done",error:"Failed"};
@@ -748,6 +748,13 @@ $("#fileIn").onchange = async e => {
 window.addEventListener("beforeunload", e => { if (rec) { e.preventDefault(); e.returnValue = ""; } });
 document.addEventListener("keydown", e => { if (e.key === " " && e.altKey) { e.preventDefault(); $("#recBtn").click(); } });
 
+$("#restartBtn").onclick = async () => {
+  $("#restartBtn").textContent = "Restarting…";
+  try { const r = await fetch("/api/restart", { method: "POST" }); if (!r.ok) throw 0; } catch { $("#restartHelp").style.display = "inline"; $("#restartBtn").textContent = "Restart now"; return; }
+  for (let i = 0; i < 40; i++) { await new Promise(r => setTimeout(r, 500));
+    try { const h = await (await fetch("/api/health")).json(); if (h.version === APP_VERSION) { location.reload(); return; } } catch {} }
+  $("#restartHelp").style.display = "inline"; $("#restartBtn").textContent = "Restart now";
+};
 showHome(); refresh(); loadHealth(); loadVoices().then(() => { if (view === "home") renderHome(); }); setInterval(loadHealth, 15000);
 </script>
 </body>

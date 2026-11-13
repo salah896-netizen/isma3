@@ -12,7 +12,7 @@ if [ -f data/server.pid ] && curl -s "$URL/api/health" >/dev/null; then
     kill "$(cat data/server.pid)" 2>/dev/null; sleep 1.5
   fi
 elif curl -s "$URL/api/health" >/dev/null; then
-  pkill -f ".venv/bin/python app.py"; sleep 1.5   # an older copy without a pid file
+  pkill -f ".venv/bin/python app.py"; pkill -f "$DIR/app.py"; sleep 1.5   # an older copy without a pid file
 fi
 if ! curl -s "$URL/api/health" >/dev/null; then
   curl -s http://127.0.0.1:11434/api/tags >/dev/null || { open -ga Ollama; sleep 4; }

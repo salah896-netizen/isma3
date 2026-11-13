@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
     "port": 8765,
 }
 
-VERSION = "1.7"  # bump with every update; the page compares it to spot a stale engine
+VERSION = "1.8"  # bump with every update; the page compares it to spot a stale engine
 
 STAGES = {
     "queued": "Waiting",
